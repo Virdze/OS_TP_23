@@ -1,0 +1,85 @@
+Serviço de monitorização de programas executados numa máquina
+
+Utilizadores :
+    MAIN GOAL - Executar programas, através do cliente, e obter o seu tempo
+de execução ( tempo total desde que o utilizador pede ao cliente para correr o programa
+até este terminar)
+
+Administrador :
+    MAIN GOAL - Consultar, através do servidor, todos os programas que se encontrem 
+    atualmente em execução, incluíndo o tempo dispendido pelos mesmos. 
+    Permitir a consulta de estatisticas sobre programas terminados (tempo de execução agregado
+    de um certo conjunto de programas).
+
+Cliente (tracer)
+    Oferecer interface com utilizador via linha de comandos.
+    STDOUT usado para apresentar respostas do servidor ao cliente
+
+    $ execute -u 
+        Numero de argumentos e variavel
+        Quando o pedido é feito, deve ser enviado ao servidor a seguinte informção:
+            . PID do processo a executar o programa
+            . Nome do programa a executar
+            . Timestamp atual, representa o tempo antes da execução.
+        Quando o pedido é feito, deve ser imprimido no STDOUT:
+            . PID do processo a executar o programa
+        Após estas informações, o cliente deve executar o programa.
+        FAZER FUNÇAO gettimeofday() para gerar o timestamp do momento inicial de execução. 
+        Quando terminar a execução, o cliente deve informar o servidor do mesmo, enviando:
+            . PID do processo que terminou
+            . timestamp atual, que representa o tempo de termino de execução.
+        Quando terminar a execução, deve ser imprimido no STDOUT :
+            . tempo de execução do programa.
+        
+    $ status 
+        Comando que lista todos os programas em execução no momento, linha por linha. Deve conter:
+            . PID do processo
+            . Nome
+            . Tempo de execução (milissegundos). 
+
+
+Servidor (monitor)
+    Devera manter em memoria e em ficheiros a informação relevante para suportar as funcionalidades.
+    STDOUT usado para debug que se ache necessário.
+
+
+    (Funcionalidade avançada)
+    Servidor deve armazenar em ficheiro o estado dos programas terminados,
+    um ficheiro por cada programa executado, com o nome a corresponder ao
+    PID do programa em questão. Deve conter ainda:
+        . nome do programa executado
+        . tempo de execucao total (milisegundos)
+    Ficheiros devem ser guardados dentro de uma pasta, cujo caminho e passado ao servidor como argumento durante o seu arranque.
+
+
+TRACER 
+    -> Abrir pipe com nome para escrever para o monitor
+    -> Abrir pipe com nome para ler informação do monitor
+
+execute -u 
+
+    -> Enviar informações para o monitor (É preciso esperar)?
+    -> Lança o filho para fazer execução do comando 
+        :. No caso de varios programas, fazer pipes sem nome de forma a encadear
+        a execução de cada comando (EXTRA)
+    -> Pai informa no STDOUT que o processo foi lançado
+    -> Output do programa sai pelo filho
+    -> Pai espera que o filho termine
+    -> Pai informa o monitor que o processo PID terminou a execução.
+
+status 
+    -> Envia pedido ao monitor, no respetivo pipe, para receber informação dos pedidos a serem 
+    processados de momento
+    -> Monitor vai verificar os processos presentes no array dos pendentes e 
+    vai enviar a informaçao pelo pipe, processo a processo. 
+    -> Tracer le processos no respetivo pipe e guarda a informação
+    -> Informação é devolvida no STDOUT do utilizador
+
+stats-time
+    -> Envia pedido ao monitor, no respetivo pipe, para receber informação
+    do tempo necessário para a execução de cada processo inserido nos argumentos
+    -> Monitor vai percorrer os pedidos finalizados e procurar os pids dos processos
+    especificados pelo utilizador.
+    -> Os tempos de execução de cada programa é adicionado
+    -> Monitor devolve informação sobre o tempo de execução total no respetivo pipe.
+    -> Informação é devolvida no STDOUT do utilizador no Tracer.
