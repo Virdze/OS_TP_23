@@ -83,3 +83,19 @@ stats-time
     -> Os tempos de execução de cada programa é adicionado
     -> Monitor devolve informação sobre o tempo de execução total no respetivo pipe.
     -> Informação é devolvida no STDOUT do utilizador no Tracer.
+
+
+
+PIPES COM NOME NECESSARIOS:
+
+    Envia struct -> Devolve struct
+    Envia inteiro -> Devolve struct 
+
+    1 pipe que vai servir para enviar struct do tracer e
+                               receber struct no monitor
+    1 pipe que vai servir para enviar struct do monitor e 
+                               receber struct no tracer
+    1 pipe que vai servir para enviar inteiro do tracer e
+                               receber struct no monitor
+    1 pipe que vai servir para enviar struct do monitor e
+                               receber struct no tracer
