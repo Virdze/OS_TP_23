@@ -6,120 +6,193 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
-#include "../headers/monitor.h"
+#include "../headers/message.h"
+#include "../headers/task.h"
 
-#define MAX_BUFFER_SIZE 512
-#define process_request_fifo "../tmp/process_request_fifo"
-#define process_response_fifo "../tmp/process_response_fifo"
-#define status_request_fifo "../tmp/status_request_fifo"
-#define status_response_fifo "../tmp/status_response_fifo"
+#define MAIN_FIFO "../tmp/main_fifo"
 
+//  =================================== ** GLOBALS ** ===================================
 
-Process * done;
-Process * requests;
+Task * done;
+Task * requests;
 int requests_count = 0,
     done_count = 0;
-int process_request_fd, process_response_fd,
-    status_request_fd, status_response_fd;
+int main_channel_fd;
+
+// =====================================================================================
 
 
-void addRequest(Process process){
+//  =================================== ** PRINTS ** ===================================
+
+void printTask(Task t){
+    printf("%d\n%s\n%fms\n",t->process_pid,t->task_name, t->exec_time);
+}
+void printDoneList(){
+    for(int i = 0; i < done_count; i++)
+        printTask(done[i]);
+}
+
+void printRequests(){
+    for(int i = 0; i < requests_count; i++)
+        printTask(requests[i]);
+}
+
+
+
+// =====================================================================================
+
+void addRequest(Task task){
     if(requests_count == 0){
-        requests = malloc(sizeof(Process));
-        requests[0] = malloc(sizeof(struct process));
-        requests[0]->process_pid = process->process_pid;
-        requests[0]->task_name = process->task_name;
-        requests[0]->exec_time = process->exec_time;
+        requests = malloc(sizeof(Task));
+        requests[0] = malloc(sizeof(struct task));
+        requests[0]->process_pid = task->process_pid;
+        strcpy(requests[0]->task_name,task->task_name);
+        requests[0]->exec_time = task->exec_time;
     }
     else{
         requests_count++;
-        requests = realloc(requests,sizeof(Process) * (requests_count));
-        requests[requests_count] = malloc(sizeof(struct process));
-        requests[requests_count]->process_pid = process->process_pid;
-        requests[requests_count]->task_name = process->task_name;
-        requests[requests_count]->exec_time = process->exec_time;
+        requests = realloc(requests,sizeof(Task) * (requests_count));
+        requests[requests_count] = malloc(sizeof(struct task));
+        requests[requests_count]->process_pid = task->process_pid;
+        strcpy(requests[requests_count]->task_name,task->task_name);
+        requests[requests_count]->exec_time = task->exec_time;
     }
 }
 
-void finishRequest(Process process){
+void finishRequest(Task task){
     if(done_count == 0){
-        done = malloc(sizeof(Process));
-        done[0] = malloc(sizeof(struct process));
-        done[0]->process_pid = process->process_pid;
-        done[0]->task_name = process->task_name;
-        done[0]->exec_time = process->exec_time;
+        done = malloc(sizeof(Task));
+        done[0] = malloc(sizeof(struct task));
+        done[0]->process_pid = task->process_pid;
+        strcpy(done[0]->task_name,task->task_name);
+        done[0]->exec_time = task->exec_time;
     }
     else{
         for(int i = 0; i < requests_count ; i++){
-            if(requests[i]->process_pid == process->process_pid){
+            if(requests[i]->process_pid == task->process_pid){
                 free(requests[i]);
                 for (int j = i; j < requests_count - 1; j++){
                     requests[j] = requests[j+1];
                 }
                 requests_count--;
-                realloc(requests,requests_count * sizeof(Process));
+                requests = realloc(requests,requests_count * sizeof(Task));
             }
         }
 
         done_count++;
-        done = realloc(done,sizeof(Process) * (done_count));
-        done[done_count] = malloc(sizeof(struct process));
-        done[done_count]->process_pid = process->process_pid;
-        done[done_count]->task_name = process->task_name;
-        done[done_count]->exec_time = process->exec_time;
+        done = realloc(done,sizeof(Task) * (done_count));
+        done[done_count] = malloc(sizeof(struct task));
+        done[done_count]->process_pid = task->process_pid;
+        strcpy(done[done_count]->task_name,task->task_name);
+        done[done_count]->exec_time = task->exec_time;
     }
+}
+
+Task createStartTask(Message m){
+    if(m->msg.EStart == NULL){
+        printf("Upsi\n");
+        return NULL;
+    }
+    if(m->type == 1){
+        Task new_task = malloc(sizeof(struct task));
+        pid_t pid = m->msg.EStart->process_pid;
+        new_task->process_pid = pid;
+        strcpy(new_task->task_name,m->msg.EStart->task_name);
+        new_task->exec_time = m->msg.EStart->start;
+        return new_task;
+    }
+    return NULL;
+}
+
+Task findRequest(pid_t pid){
+    Task r = malloc(sizeof(struct task));
+    for(int i = 0; i < requests_count;i++){
+        if(requests[i]->process_pid == pid)
+            r = requests[i];
+    }
+    return r;
+}
+
+void send_exec_time(Message m, Task t){
+    int response_fd;
+    if((response_fd = open(m->msg.EEnd->response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+
+    printf("%s\n", m->msg.EEnd->response_path);
+
+    Message response = malloc(sizeof(struct message));
+    response->type = 5;
+    response->msg.time = t->exec_time;
+    write(response_fd, response, sizeof(response));
+    printf("Time: %f", response->msg.time);
+    close(response_fd);
 }
 
 void monitoring(char * path){
-    int flag = 0;
-    while(!flag){
-        ssize_t readedBytes;
-        Process process = malloc(sizeof(struct process));
-        while((readedBytes = read(process, process, sizeof(struct process))) > 0){
-            addRequest(process);
-            // Provavelmente necessário adicionar filhos de forma ao monitor poder responder
-            // a varios pedidos de varios clientes em simultaneo
+    ssize_t bytes_read;
+    Message new_message = malloc(sizeof(struct message));
+
+    pid_t pids[1024];
+    int sons = 0;
+
+    while((bytes_read = read(main_channel_fd,new_message,sizeof(struct message))) > 0){
+
+        if(new_message->type == 1){
+            new_message->msg.EStart = malloc(sizeof(struct execute_start));
+            read(main_channel_fd,new_message->msg.EStart, sizeof(struct execute_start));
+            Task t = createStartTask(new_message);
+            addRequest(t);
+            printRequests();
         }
+
+        else if(new_message->type == 2){
+            new_message->msg.EEnd = malloc(sizeof(struct execute_end));
+            read(main_channel_fd,new_message->msg.EEnd,sizeof(struct execute_end));
+            pid_t pid;
+
+            Task t = findRequest(new_message->msg.EEnd->process_pid);
+            double initial_time = t->exec_time;
+            t->exec_time = (new_message->msg.EEnd->end - initial_time) * 1000;
+            finishRequest(t);
+
+            if((pid = fork()) < 0){
+                perror("Error using fork()!\n");
+                _exit(-1);
+            }
+            else if (!pid){
+                send_exec_time(new_message, t);
+                printf("%d sended message to the user waiting!\n",getpid());
+                _exit(0);
+            } else {
+                pids[sons] = pid;
+                sons++;
+            }
+        }
+    }
+
+
+    // Wait to catch all the sons that were created during the monitor life-span
+
+    for(int i = 0; i < sons; i++){
+        int status;
+        waitpid(pids[0],&status,0);
     }
 }
 
-int initFifos(){
-    int prq_fifo;
-    if((prq_fifo = mkfifo(process_request_fifo, 0600)) < 0){
+int initMainChannel(){
+    int main_channel_fifo;
+    if((main_channel_fifo = mkfifo(MAIN_FIFO, 0600)) < 0){
         perror("Error creating process request fifo!\n");
-        _exit(-1);
-    }
-    int prsp_fifo;
-    if((prsp_fifo = mkfifo(process_response_fifo, 0600)) < 0){
-        perror("Error creating process response fifo!\n");
-    }
-    int status_rq_fifo;
-    if((status_rq_fifo = mkfifo(status_request_fifo, 0600)) < 0){
-        perror("Error creating status request fifo!\n");
-        _exit(-1);
-    }
-    int status_rsp_fifo;
-    if((status_rsp_fifo = mkfifo(status_response_fifo, 0600)) < 0){
-        perror("Error creating status response fifo!\n");
-        _exit(-1);
+        return -1;
     }
 
-    if((process_request_fd = open(process_request_fifo, O_RDONLY)) < 0){
+    if((main_channel_fd = open(MAIN_FIFO, O_RDONLY)) < 0){
         perror("Error opening process request fifo\n");
-        _exit(-1);
+        return -1;
     }
-    if((status_request_fd = open(status_request_fifo, O_RDONLY)) < 0){
-        perror("Error opening status request fifo\n");
-        _exit(-1);
-    }
-    if((process_response_fd = open(process_response_fifo, O_WRONLY)) < 0){
-        perror("Error opening process response fifo\n");
-        _exit(-1);
-    }
-    if((status_response_fd = open(status_response_fifo,O_WRONLY)) < 0){
-        perror("Error opening status response fifo\n");
-        _exit(-1);
-    }
+
     return 0;
 }
 
@@ -129,11 +202,13 @@ int main(int argc, char * argv[]){
         printf("1: ./monitor PIDS-folder\n");
     }
     else {
-        if (initFifos() < 0)
-            _exit(-1);
-        initGlobals();
+        if (initMainChannel() < 0)
+            return -1;
         char * folders_path = strdup(argv[1]);
         // Iniciar monitoring
         monitoring(folders_path);
     }
+    close(main_channel_fd);
+    unlink(MAIN_FIFO);
+    return 0;
 } 

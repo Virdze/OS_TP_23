@@ -98,4 +98,4 @@ PIPES COM NOME NECESSARIOS:
     1 pipe que vai servir para enviar inteiro do tracer e
                                receber struct no monitor
     1 pipe que vai servir para enviar struct do monitor e
-                               receber struct no tracer
+                         struct      receber struct no tracer
