@@ -102,7 +102,7 @@ int main(int argc, char * argv[]){
             // 8. Criar fifo
 
             int response_fifo;
-            if((response_fifo = mkfifo(path, 0600)) < 0){
+            if((response_fifo = mkfifo(path, 0666)) < 0){
                 perror("Error creating response pipe.\n");
                 _exit(-1);
             }
@@ -113,17 +113,16 @@ int main(int argc, char * argv[]){
                 perror("Error opening fifo!\n");
                 _exit(-1);
             }
+        
 
             // 8. Enviar informação para o monitor
             write(main_channel_fd, end_message ,sizeof(struct message));
-            close(main_channel_fd);
             
             // 9. Esperar comunicação no path enviado ao monitor
-            //IM HERE
 
             ssize_t bytes_read; 
             Message response = malloc(sizeof(struct message));
-            if((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
+            if((bytes_read = read(response_fd, &response->type, sizeof(int))) > 0){
                 if(response->type == 5){
                     printf("Ended in %fms\n", response->msg.time);
                 }
@@ -133,6 +132,7 @@ int main(int argc, char * argv[]){
             }
 
             // 10. Fechar escrita para o pipe por parte do cliente
+            close(main_channel_fd);
             close(response_fd);
             unlink(path);
         }

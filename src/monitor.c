@@ -133,12 +133,10 @@ void send_exec_time(Message m, Task t){
 void monitoring(char * path){
     ssize_t bytes_read;
     Message new_message = malloc(sizeof(struct message));
-
     pid_t pids[1024];
     int sons = 0;
 
-    while((bytes_read = read(main_channel_fd,new_message,sizeof(struct message))) > 0){
-
+    while((bytes_read = read(main_channel_fd,&new_message->type,sizeof(int))) > 0){
         if(new_message->type == 1){
             new_message->msg.EStart = malloc(sizeof(struct execute_start));
             read(main_channel_fd,new_message->msg.EStart, sizeof(struct execute_start));
@@ -183,7 +181,7 @@ void monitoring(char * path){
 
 int initMainChannel(){
     int main_channel_fifo;
-    if((main_channel_fifo = mkfifo(MAIN_FIFO, 0600)) < 0){
+    if((main_channel_fifo = mkfifo(MAIN_FIFO, 0666)) < 0){
         perror("Error creating process request fifo!\n");
         return -1;
     }
