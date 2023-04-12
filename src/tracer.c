@@ -95,11 +95,14 @@ int main(int argc, char * argv[]){
             end_message->msg.EEnd = malloc(sizeof(struct execute_end));
             end_message->msg.EEnd->end = get_time_of_day();
             end_message->msg.EEnd->process_pid = pid;
-            char path[50];
+            char path[20];
             sprintf(path,"../tmp/process_%d", pid);
             strcpy(end_message->msg.EEnd->response_path,path);
 
-            // 8. Criar fifo
+            // 8. Enviar informação para o monitor
+            write(main_channel_fd, end_message ,sizeof(struct message));
+            
+            // 9. Criar fifo para receber resposta 
 
             int response_fifo;
             if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -107,23 +110,20 @@ int main(int argc, char * argv[]){
                 _exit(-1);
             }
 
-            // 9. Abrir comunicação
+            // 10. Abrir comunicação
             int response_fd;
             if((response_fd = open(path, O_RDONLY)) < 0){
                 perror("Error opening fifo!\n");
                 _exit(-1);
             }
-        
-
-            // 8. Enviar informação para o monitor
-            write(main_channel_fd, end_message ,sizeof(struct message));
             
-            // 9. Esperar comunicação no path enviado ao monitor
+            // 11. Esperar comunicação no path enviado ao monitor
 
             ssize_t bytes_read; 
             Message response = malloc(sizeof(struct message));
             if((bytes_read = read(response_fd, &response->type, sizeof(int))) > 0){
                 if(response->type == 5){
+                    // 12. Apresentar resposta no STDOUT
                     printf("Ended in %fms\n", response->msg.time);
                 }
             }
@@ -131,7 +131,7 @@ int main(int argc, char * argv[]){
                 printf("Something went wrong!\n");
             }
 
-            // 10. Fechar escrita para o pipe por parte do cliente
+            // 13. Fechar escrita para o pipe por parte do cliente
             close(main_channel_fd);
             close(response_fd);
             unlink(path);

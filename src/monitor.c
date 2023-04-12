@@ -50,13 +50,13 @@ void addRequest(Task task){
         requests[0]->exec_time = task->exec_time;
     }
     else{
-        requests_count++;
         requests = realloc(requests,sizeof(Task) * (requests_count));
         requests[requests_count] = malloc(sizeof(struct task));
         requests[requests_count]->process_pid = task->process_pid;
         strcpy(requests[requests_count]->task_name,task->task_name);
         requests[requests_count]->exec_time = task->exec_time;
     }
+    requests_count++;
 }
 
 void finishRequest(Task task){
@@ -68,24 +68,23 @@ void finishRequest(Task task){
         done[0]->exec_time = task->exec_time;
     }
     else{
-        for(int i = 0; i < requests_count ; i++){
-            if(requests[i]->process_pid == task->process_pid){
-                free(requests[i]);
-                for (int j = i; j < requests_count - 1; j++){
-                    requests[j] = requests[j+1];
-                }
-                requests_count--;
-                requests = realloc(requests,requests_count * sizeof(Task));
-            }
-        }
-
-        done_count++;
         done = realloc(done,sizeof(Task) * (done_count));
         done[done_count] = malloc(sizeof(struct task));
         done[done_count]->process_pid = task->process_pid;
         strcpy(done[done_count]->task_name,task->task_name);
         done[done_count]->exec_time = task->exec_time;
     }
+    for(int i = 0; i < requests_count ; i++){
+        if(requests[i]->process_pid == task->process_pid){
+            free(requests[i]);
+            for (int j = i; j < requests_count - 1; j++){
+                requests[j] = requests[j+1];
+            }
+            requests_count--;
+            requests = realloc(requests,requests_count * sizeof(Task));
+        }
+    }
+    done_count++;
 }
 
 Task createStartTask(Message m){
@@ -142,7 +141,6 @@ void monitoring(char * path){
             read(main_channel_fd,new_message->msg.EStart, sizeof(struct execute_start));
             Task t = createStartTask(new_message);
             addRequest(t);
-            printRequests();
         }
 
         else if(new_message->type == 2){
@@ -168,6 +166,7 @@ void monitoring(char * path){
                 sons++;
             }
         }
+        free(new_message); // Clear message
     }
 
 

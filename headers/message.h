@@ -4,9 +4,10 @@
 
 
 // 1 - Tracer -> Monitor (Starting Execute)
-// 2 - Full duplex (Time)
+// 2 - Full duplex (Finish Execute)
 // 3 - Tracer -> Monitor (Stating request)
 // 4 - Monitor -> Tracer (Status response)
+// 5 - double time -> Execute Response
 
 
 typedef struct message {
@@ -19,7 +20,7 @@ typedef struct message {
         } * EStart;
 
         struct execute_end {
-            char response_path[50];
+            char response_path[20];
             pid_t process_pid;
             double end;
         } * EEnd;
