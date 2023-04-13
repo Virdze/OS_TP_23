@@ -88,19 +88,11 @@ void finishRequest(Task task){
 }
 
 Task createStartTask(Message m){
-    if(m->msg.EStart == NULL){
-        printf("Upsi\n");
-        return NULL;
-    }
-    if(m->type == 1){
-        Task new_task = malloc(sizeof(struct task));
-        pid_t pid = m->msg.EStart->process_pid;
-        new_task->process_pid = pid;
-        strcpy(new_task->task_name,m->msg.EStart->task_name);
-        new_task->exec_time = m->msg.EStart->start;
-        return new_task;
-    }
-    return NULL;
+    Task new_task = malloc(sizeof(struct task));
+    new_task->process_pid = m->msg.EStart.process_pid;
+    strcpy(new_task->task_name,m->msg.EStart.task_name);
+    new_task->exec_time = m->msg.EStart.start;
+    return new_task;
 }
 
 Task findRequest(pid_t pid){
@@ -114,18 +106,15 @@ Task findRequest(pid_t pid){
 
 void send_exec_time(Message m, Task t){
     int response_fd;
-    if((response_fd = open(m->msg.EEnd->response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->msg.EEnd.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
-
-    printf("%s\n", m->msg.EEnd->response_path);
 
     Message response = malloc(sizeof(struct message));
     response->type = 5;
     response->msg.time = t->exec_time;
     write(response_fd, response, sizeof(response));
-    printf("Time: %f", response->msg.time);
     close(response_fd);
 }
 
@@ -134,39 +123,45 @@ void monitoring(char * path){
     Message new_message = malloc(sizeof(struct message));
     pid_t pids[1024];
     int sons = 0;
-
-    while((bytes_read = read(main_channel_fd,&new_message->type,sizeof(int))) > 0){
-        if(new_message->type == 1){
-            new_message->msg.EStart = malloc(sizeof(struct execute_start));
-            read(main_channel_fd,new_message->msg.EStart, sizeof(struct execute_start));
-            Task t = createStartTask(new_message);
-            addRequest(t);
-        }
-
-        else if(new_message->type == 2){
-            new_message->msg.EEnd = malloc(sizeof(struct execute_end));
-            read(main_channel_fd,new_message->msg.EEnd,sizeof(struct execute_end));
-            pid_t pid;
-
-            Task t = findRequest(new_message->msg.EEnd->process_pid);
-            double initial_time = t->exec_time;
-            t->exec_time = (new_message->msg.EEnd->end - initial_time) * 1000;
-            finishRequest(t);
-
-            if((pid = fork()) < 0){
-                perror("Error using fork()!\n");
-                _exit(-1);
+    int flag = 0;
+    while(!flag){
+        while((bytes_read = read(main_channel_fd,new_message,sizeof(struct message))) > 0){
+            if(new_message->type == 1){
+                //new_message->msg.EStart = malloc(sizeof(struct execute_start));
+                //read(main_channel_fd,new_message->msg.EStart, sizeof(struct execute_start));
+                Task t = createStartTask(new_message);
+                addRequest(t);
             }
-            else if (!pid){
-                send_exec_time(new_message, t);
-                printf("%d sended message to the user waiting!\n",getpid());
-                _exit(0);
-            } else {
-                pids[sons] = pid;
-                sons++;
+
+            else if(new_message->type == 2){
+                //new_message->msg.EEnd = (struct execute_end*) malloc(sizeof(struct execute_end));
+                //read(main_channel_fd,new_message->msg.EEnd,sizeof(struct execute_end));
+                pid_t pid;
+
+                Task t = findRequest(new_message->msg.EEnd.process_pid);
+                double initial_time = t->exec_time;
+                t->exec_time = (new_message->msg.EEnd.end - initial_time) * 1000;
+                finishRequest(t);
+
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!\n");
+                    _exit(-1);
+                }
+                else if (!pid){
+                    send_exec_time(new_message, t);
+                    printf("%d sended message to the user waiting!\n",getpid());
+                    _exit(0);
+                } else {
+                    pids[sons] = pid;
+                    sons++;
+                }
             }
+            else if(new_message->type == -1){
+                flag = 1;
+                break;
+            }
+            free(new_message); // Clear message
         }
-        free(new_message); // Clear message
     }
 
 

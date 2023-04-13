@@ -17,28 +17,25 @@ typedef struct message {
             char task_name[20];
             pid_t process_pid;
             double start;
-        } * EStart;
+        } EStart;
 
         struct execute_end {
-            char response_path[20];
+            char response_path[50];
             pid_t process_pid;
             double end;
-        } * EEnd;
+        } EEnd;
         
         struct status_request{
             /* data */
-        }* StatusRequest;
+        } StatusRequest;
     
         struct status_response {
             /* data */
-        }* StatusResponse;
+        } StatusResponse;
 
         double time;
     } msg;
 
-} * Message; 
-
-
-
+} * Message ;
 
 #endif

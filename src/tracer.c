@@ -49,6 +49,12 @@ int main(int argc, char * argv[]){
         _exit(-1);
     }
 
+    //  Abrir comunicação do lado do tracer 
+    else if ((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
+        perror("Error opening request fifo!\n");
+        _exit(-1);
+    }
+
     if (!strcmp(argv[1],"execute")){
         if (!strcmp(argv[2], "-u")){
             // Execução de um comando
@@ -65,44 +71,35 @@ int main(int argc, char * argv[]){
             }
             command[argc - 3] = NULL;   
     
-            // 2. Abrir comunicação do lado do tracer 
-            if((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
-                perror("Error opening request fifo!\n");
-                _exit(-1);
-            }
-
-            // 3. Criar Mensagem de início de execução
+            // 2. Criar Mensagem de início de execução
             
             Message start_message = malloc(sizeof(struct message));
             start_message->type = 1;
-            start_message->msg.EStart = malloc(sizeof(struct execute_start));
-            start_message->msg.EStart->start = get_time_of_day();
-            start_message->msg.EStart->process_pid = pid;
-            strcpy(start_message->msg.EStart->task_name,task_name);        
+            start_message->msg.EStart.start = get_time_of_day();
+            start_message->msg.EStart.process_pid = pid;
+            strcpy(start_message->msg.EStart.task_name,task_name);        
 
-            // 4. Enviar informação para o monitor
+            // 3. Enviar informação para o monitor
             write(main_channel_fd, start_message, sizeof(struct message));
-            // 5. Informar utilizador de início da execução
+            // 4. Informar utilizador de início da execução
             printf("Running PID %d\n", pid);
         
-            // 6. Executar programa
+            // 5. Executar programa
             executeSingle(command);
 
-            // 7. Criar Mensagem de fim de Execução
-            //double exec_time = (final_time - initial_time) * 1000;
+            // 6. Criar Mensagem de fim de Execução
             Message end_message = malloc(sizeof(struct message));
             end_message->type = 2;
-            end_message->msg.EEnd = malloc(sizeof(struct execute_end));
-            end_message->msg.EEnd->end = get_time_of_day();
-            end_message->msg.EEnd->process_pid = pid;
-            char path[20];
+            end_message->msg.EEnd.end = get_time_of_day();
+            end_message->msg.EEnd.process_pid = pid;
+            char path[50];
             sprintf(path,"../tmp/process_%d", pid);
-            strcpy(end_message->msg.EEnd->response_path,path);
-
-            // 8. Enviar informação para o monitor
+            strncpy(end_message->msg.EEnd.response_path,path,sizeof(end_message->msg.EEnd.response_path) - 1);
+            end_message->msg.EEnd.response_path[sizeof(end_message->msg.EEnd.response_path) - 1] = '\0';
+            // 7. Enviar informação para o monitor
             write(main_channel_fd, end_message ,sizeof(struct message));
             
-            // 9. Criar fifo para receber resposta 
+            // 8. Criar fifo para receber resposta 
 
             int response_fifo;
             if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -110,20 +107,20 @@ int main(int argc, char * argv[]){
                 _exit(-1);
             }
 
-            // 10. Abrir comunicação
+            // 9. Abrir comunicação
             int response_fd;
             if((response_fd = open(path, O_RDONLY)) < 0){
                 perror("Error opening fifo!\n");
                 _exit(-1);
             }
             
-            // 11. Esperar comunicação no path enviado ao monitor
+            // 10. Esperar comunicação no path enviado ao monitor
 
             ssize_t bytes_read; 
             Message response = malloc(sizeof(struct message));
             if((bytes_read = read(response_fd, &response->type, sizeof(int))) > 0){
                 if(response->type == 5){
-                    // 12. Apresentar resposta no STDOUT
+                    // 11. Apresentar resposta no STDOUT
                     printf("Ended in %fms\n", response->msg.time);
                 }
             }
@@ -131,7 +128,7 @@ int main(int argc, char * argv[]){
                 printf("Something went wrong!\n");
             }
 
-            // 13. Fechar escrita para o pipe por parte do cliente
+            // 12. Fechar escrita para o pipe por parte do cliente
             close(main_channel_fd);
             close(response_fd);
             unlink(path);
@@ -145,7 +142,9 @@ int main(int argc, char * argv[]){
     }
     else if(!strcmp(argv[1],"END")){
         //End monitor (Temporario)
-        write(main_channel_fd,"\0",sizeof("\0"));
+        Message end = malloc(sizeof(struct message));
+        end->type = -1;
+        write(main_channel_fd,end,sizeof(struct message));
         close(main_channel_fd);
     }
     else ;
