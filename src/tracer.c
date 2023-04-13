@@ -22,10 +22,18 @@ double get_time_of_day(){
     return (double) (clock() / CLOCKS_PER_SEC);
 }
 
+void printStatusResponse(Message m){
+    printf("================================\n");
+    printf("PID: %d\n", m->msg.StatusResponse.process_pid);
+    printf("Task(s): %s\n", m->msg.StatusResponse.task_name);
+    printf("Time Elapsed: %fms\n", m->msg.StatusResponse.time_elapsed);
+    printf("================================\n");
+}
+
 void executeSingle(char ** command){
     pid_t pid;
     int status;
-
+    sleep(5);
     if((pid = fork()) < 0){
         perror("Error using fork()!\n");
         _exit(-1);
@@ -138,7 +146,53 @@ int main(int argc, char * argv[]){
         }
     }
     else if(!strcmp(argv[1],"status")){
-        //Command
+        // 1. Pid
+        pid_t pid = getpid();
+
+        // 2. Criar request
+        Message request = malloc(sizeof(struct message));
+        request->type = 3;
+        request->msg.StatusRequest.clock = get_time_of_day();
+        // 2.1 - Criar request path
+        char path[50];
+        sprintf(path,"../tmp/process_%d", pid);
+        strncpy(request->msg.StatusRequest.response_path,path,sizeof(request->msg.StatusRequest.response_path) - 1);
+        request->msg.StatusRequest.response_path[sizeof(request->msg.StatusRequest.response_path) - 1] = '\0';
+        
+        // 3. Enviar request ao monitor
+        write(main_channel_fd, request,sizeof(struct message));
+        
+
+        // 4. Criar fifo
+        int response_fifo;
+        if((response_fifo = mkfifo(path, 0666)) < 0){
+            perror("Error creating response pipe.\n");
+            _exit(-1);
+        }
+
+        // 5. Abrir comunicação 
+        int response_fd;
+        if((response_fd = open(path, O_RDONLY)) < 0){
+            perror("Error opening fifo!\n");
+            _exit(-1);
+        }
+        
+        // 6. Esperar resposta 
+        ssize_t bytes_read; 
+        Message response = malloc(sizeof(struct message));
+        while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
+            if(response->type == 4){
+                // 7. Apresentar resposta no STDOUT
+                printf("%d\n",response->msg.StatusResponse.process_pid);
+                //printStatusResponse(response);
+            }
+        }
+
+        // 8. Fechar descritores e destruir o fifo criado
+        
+        close(main_channel_fd);
+        close(response_fd);
+        unlink(path);
     }
     else if(!strcmp(argv[1],"END")){
         //End monitor (Temporario)

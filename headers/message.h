@@ -25,12 +25,15 @@ typedef struct message {
             double end;
         } EEnd;
         
-        struct status_request{
-            /* data */
+        struct status_request {
+            char response_path[50];
+            double clock;
         } StatusRequest;
-    
+
         struct status_response {
-            /* data */
+            char task_name[20];
+            pid_t process_pid;
+            double time_elapsed;
         } StatusResponse;
 
         double time;
