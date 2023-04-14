@@ -125,16 +125,16 @@ void status_response(Message m){
         _exit(-1);
     }
 
+    Message response = malloc(sizeof(struct message));
     for(int i = 0; i < requests_count; i++){
         // 2 . Constroi resposta
-        Message response = malloc(sizeof(struct message));
         response->type = 4;
         response->msg.StatusResponse.process_pid = requests[i]->process_pid;
         strcpy(response->msg.StatusResponse.task_name,requests[i]->task_name);
         response->msg.StatusResponse.time_elapsed = m->msg.StatusRequest.clock - requests[i]->exec_time;
-        printf("%d\n", response->msg.StatusResponse.process_pid);
         // 3. Write da resposta 
-        write(response_fd, response, sizeof(response));
+        write(response_fd, response, sizeof(struct message));
+        free(response);
     }
 
 
@@ -153,7 +153,6 @@ void monitoring(char * path){
             if(new_message->type == 1){
                 Task t = createStartTask(new_message);
                 addRequest(t);
-                printRequests();
             }
             else if(new_message->type == 2){
                 pid_t pid;
@@ -174,7 +173,6 @@ void monitoring(char * path){
                 } else {
                     pids[sons] = pid;
                     sons++;
-                    printDoneList();
                 }
             }
             else if(new_message->type == 3){

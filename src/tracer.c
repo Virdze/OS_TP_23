@@ -183,8 +183,8 @@ int main(int argc, char * argv[]){
         while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
             if(response->type == 4){
                 // 7. Apresentar resposta no STDOUT
-                printf("%d\n",response->msg.StatusResponse.process_pid);
-                //printStatusResponse(response);
+                //printf("%d\n",response->msg.StatusResponse.process_pid);
+                printStatusResponse(response);
             }
         }
 
