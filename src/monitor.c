@@ -10,6 +10,8 @@
 #include "../headers/task.h"
 
 #define MAIN_FIFO "../tmp/main_fifo"
+#define WRITE_TO(fd, string) write(fd,string,sizeof(string));   
+
 
 //  =================================== ** GLOBALS ** ===================================
 
@@ -18,6 +20,7 @@ Task * requests;
 int requests_count = 0,
     done_count = 0;
 int main_channel_fd;
+char * folders_path;
 
 // =====================================================================================
 
@@ -37,6 +40,10 @@ void printRequests(){
         printTask(requests[i]);
 }
 
+void printUsage(){
+    printf("Usage:\n");
+    printf("1: ./monitor PIDS-folder\n");
+}
 
 
 // =====================================================================================
@@ -142,7 +149,31 @@ void status_response(Message m){
     close(response_fd);
 }
 
-void monitoring(char * path){
+void save_task(Task t){
+    char path[50];
+    char task_file[20];
+    strcpy(path, folders_path);
+    sprintf(task_file, "/process_%d.txt",t->process_pid);
+    strcat(path,task_file);
+
+    int output_fd;
+    if((output_fd = open(path,O_WRONLY | O_CREAT | O_TRUNC ,0644)) < 0){
+        perror("Error opening file to write data!\n");
+        _exit(-1);
+    }
+    
+    write(output_fd,"Program name: ",sizeof(char) * strlen("Program name: "));
+    write(output_fd, t->task_name,sizeof(char) * strlen(t->task_name));
+    write(output_fd,"\n",sizeof(char) * strlen("\n"));
+    write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
+    char time[16];
+    snprintf(time,sizeof(time),"%lfms", t->exec_time); 
+    write(output_fd,time,sizeof(char) * strlen(time));  
+    close(output_fd);
+
+}
+
+void monitoring(){
     ssize_t bytes_read;
     Message new_message = malloc(sizeof(struct message));
     pid_t pids[1024];
@@ -168,7 +199,8 @@ void monitoring(char * path){
                 }
                 else if (!pid){
                     send_exec_time(new_message, t);
-                    printf("%d sended message to the user waiting!\n",getpid());
+                    printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
+                    save_task(t);
                     _exit(0);
                 } else {
                     pids[sons] = pid;
@@ -225,15 +257,14 @@ int initMainChannel(){
 
 int main(int argc, char * argv[]){
     if(argc < 2){
-        printf("Usage:\n");
-        printf("1: ./monitor PIDS-folder\n");
+        printUsage();
     }
     else {
         if (initMainChannel() < 0)
             return -1;
-        char * folders_path = strdup(argv[1]);
+        folders_path = strdup(argv[1]);
         // Iniciar monitoring
-        monitoring(folders_path);
+        monitoring();
     }
     close(main_channel_fd);
     unlink(MAIN_FIFO);

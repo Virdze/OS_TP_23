@@ -22,6 +22,18 @@ double get_time_of_day(){
     return (double) (clock() / CLOCKS_PER_SEC);
 }
 
+//  =================================== ** PRINTS ** ===================================
+
+void printUsage(){
+    printf("Usage:.\n");
+    printf("1: ./tracer execute -u prog-a arg-1 (...) arg-n\n");
+    printf("2: ./tracer execute -p prog-a arg-1 (...) arg-n | prog-b arg-1 (...) arg-n | prog-c arg-1 (...) arg-n\n");
+    printf("3: ./tracer status\n");
+    printf("4: ./tracer stats-time PID-1 PID-2 (...) PID-N\n");
+    printf("5: ./tracer stats-command prog-a PID-1 PID-2 (...) PID-N\n");
+    printf("6: ./tracer stats-uniq PID-1 PID-2 (...) PID-N\n");
+}
+
 void printStatusResponse(Message m){
     printf("================================\n");
     printf("PID: %d\n", m->msg.StatusResponse.process_pid);
@@ -29,6 +41,8 @@ void printStatusResponse(Message m){
     printf("Time Elapsed: %fms\n", m->msg.StatusResponse.time_elapsed);
     printf("================================\n");
 }
+
+// =====================================================================================
 
 void executeSingle(char ** command){
     pid_t pid;
@@ -44,24 +58,22 @@ void executeSingle(char ** command){
     }
     else wait(&status); 
 }
+int initMainChannel(){
+    //  Abrir comunicação do lado do tracer 
+    if ((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
+        perror("Error opening request fifo!\n");
+        return -1;
+    }
+    return 0;
+}
 
 int main(int argc, char * argv[]){
     if (argc < 2){
-        printf("Usage:.\n");
-        printf("1: ./tracer execute -u prog-a arg-1 (...) arg-n\n");
-        printf("2: ./tracer execute -p prog-a arg-1 (...) arg-n | prog-b arg-1 (...) arg-n | prog-c arg-1 (...) arg-n\n");
-        printf("3: ./tracer status\n");
-        printf("4: ./tracer stats-time PID-1 PID-2 (...) PID-N\n");
-        printf("5: ./tracer stats-command prog-a PID-1 PID-2 (...) PID-N\n");
-        printf("6: ./tracer stats-uniq PID-1 PID-2 (...) PID-N\n");
+        printUsage();
         _exit(-1);
     }
 
-    //  Abrir comunicação do lado do tracer 
-    else if ((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
-        perror("Error opening request fifo!\n");
-        _exit(-1);
-    }
+    if(initMainChannel() < 0) return -1;
 
     if (!strcmp(argv[1],"execute")){
         if (!strcmp(argv[2], "-u")){
