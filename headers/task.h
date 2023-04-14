@@ -5,7 +5,7 @@
 typedef struct task {
     char task_name[20];
     pid_t process_pid;
-    double exec_time;
+    long int exec_time;
 } * Task;
 
 #endif

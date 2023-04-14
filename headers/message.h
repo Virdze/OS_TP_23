@@ -1,6 +1,6 @@
 #ifndef __MESSAGE_
 #define __MESSAGE_
-#include <unistd.h>
+#include <unistd.h> 
 
 
 // 1 - Tracer -> Monitor (Starting Execute)
@@ -16,27 +16,27 @@ typedef struct message {
         struct execute_start {
             char task_name[20];
             pid_t process_pid;
-            double start;
+            long int start;
         } EStart;
 
         struct execute_end {
             char response_path[50];
             pid_t process_pid;
-            double end;
+            long int end;
         } EEnd;
         
         struct status_request {
             char response_path[50];
-            double clock;
+            long int clock;
         } StatusRequest;
 
         struct status_response {
             char task_name[20];
             pid_t process_pid;
-            double time_elapsed;
+            long int time_elapsed;
         } StatusResponse;
 
-        double time;
+        long int time;
     } msg;
 
 } * Message ;

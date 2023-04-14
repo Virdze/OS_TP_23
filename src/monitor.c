@@ -10,7 +10,6 @@
 #include "../headers/task.h"
 
 #define MAIN_FIFO "../tmp/main_fifo"
-#define WRITE_TO(fd, string) write(fd,string,sizeof(string));   
 
 
 //  =================================== ** GLOBALS ** ===================================
@@ -28,7 +27,7 @@ char * folders_path;
 //  =================================== ** PRINTS ** ===================================
 
 void printTask(Task t){
-    printf("%d\n%s\n%fms\n",t->process_pid,t->task_name, t->exec_time);
+    printf("%d\n%s\n%ldms\n",t->process_pid,t->task_name, t->exec_time);
 }
 void printDoneList(){
     for(int i = 0; i < done_count; i++)
@@ -47,25 +46,6 @@ void printUsage(){
 
 
 // =====================================================================================
-/*
-void addRequest(Task task){
-    if(requests_count == 0){
-        requests_count++;
-        requests[0] = malloc(sizeof(struct task));
-        requests[0]->process_pid = task->process_pid;
-        strcpy(requests[0]->task_name,task->task_name);
-        requests[0]->exec_time = task->exec_time;
-    }
-    else{
-        requests_count++;
-        requests = realloc(requests,sizeof(Task) * (requests_count));
-        requests[requests_count] = malloc(sizeof(struct task));
-        requests[requests_count]->process_pid = task->process_pid;
-        strcpy(requests[requests_count]->task_name,task->task_name);
-        requests[requests_count]->exec_time = task->exec_time;
-    }
-}
-*/
 
 void addRequest(Task task){
     requests_count++;
@@ -120,7 +100,7 @@ void send_exec_time(Message m, Task t){
     Message response = malloc(sizeof(struct message));
     response->type = 5;
     response->msg.time = t->exec_time;
-    write(response_fd, response, sizeof(response));
+    write(response_fd, response, sizeof(struct message));
     close(response_fd);
 }
 
@@ -167,10 +147,9 @@ void save_task(Task t){
     write(output_fd,"\n",sizeof(char) * strlen("\n"));
     write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
     char time[16];
-    snprintf(time,sizeof(time),"%lfms", t->exec_time); 
+    snprintf(time,sizeof(time),"%ldms", t->exec_time); 
     write(output_fd,time,sizeof(char) * strlen(time));  
     close(output_fd);
-
 }
 
 void monitoring(){
@@ -189,8 +168,8 @@ void monitoring(){
                 pid_t pid;
 
                 Task t = findRequest(new_message->msg.EEnd.process_pid);
-                double initial_time = t->exec_time;
-                t->exec_time = (new_message->msg.EEnd.end - initial_time) * 1000;
+                long int initial_time = t->exec_time;
+                t->exec_time = new_message->msg.EEnd.end - initial_time;
                 finishRequest(t);
 
                 if((pid = fork()) < 0){

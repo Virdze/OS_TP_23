@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <time.h>
+#include <sys/time.h>
 #include "../headers/message.h"
 #include "../headers/task.h"
 
@@ -18,8 +18,12 @@ int main_channel_fd;
 
 // =====================================================================================
 
-double get_time_of_day(){
-    return (double) (clock() / CLOCKS_PER_SEC);
+#define WRITE_TO(fd, string) write(fd,string,sizeof(string));
+long int get_time_of_day(){
+    struct timeval t;
+    gettimeofday(&t,NULL);
+    long int time = t.tv_sec * 1000 + t.tv_usec;
+    return time;
 }
 
 //  =================================== ** PRINTS ** ===================================
@@ -38,7 +42,7 @@ void printStatusResponse(Message m){
     printf("================================\n");
     printf("PID: %d\n", m->msg.StatusResponse.process_pid);
     printf("Task(s): %s\n", m->msg.StatusResponse.task_name);
-    printf("Time Elapsed: %fms\n", m->msg.StatusResponse.time_elapsed);
+    printf("Time Elapsed: %ldms\n", m->msg.StatusResponse.time_elapsed);
     printf("================================\n");
 }
 
@@ -138,14 +142,14 @@ int main(int argc, char * argv[]){
 
             ssize_t bytes_read; 
             Message response = malloc(sizeof(struct message));
-            if((bytes_read = read(response_fd, &response->type, sizeof(int))) > 0){
+            while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
                 if(response->type == 5){
                     // 11. Apresentar resposta no STDOUT
-                    printf("Ended in %fms\n", response->msg.time);
+                    printf("Ended in %ldms\n", response->msg.time);
                 }
-            }
-            else {
-                printf("Something went wrong!\n");
+                else {
+                    printf("Something went wrong!\n");
+                }
             }
 
             // 12. Fechar escrita para o pipe por parte do cliente
