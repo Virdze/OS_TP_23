@@ -148,7 +148,6 @@ void status_time_response(Message m){
         pid_t target = m->msg.StatusTimeRequest.request_pids[i];
         for(int j = 0, flag = 0; !flag ; j++){
             if(target == done[j]->process_pid){
-                printf("Found!\n");
                 response += done[j]->exec_time;
                 flag = 1;
             }
@@ -168,7 +167,7 @@ void save_task(Task t){
 
     int output_fd;
     if((output_fd = open(path,O_WRONLY | O_CREAT | O_TRUNC ,0644)) < 0){
-        perror("Error opening file to write data!\n");
+        perror("Error opening to write data!");
         _exit(-1);
     }
     

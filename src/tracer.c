@@ -62,7 +62,6 @@ void printStatusTimeResponse(long int response){
 void executeSingle(char ** command){
     pid_t pid;
     int status;
-    sleep(5);
     if((pid = fork()) < 0){
         perror("Error using fork()!\n");
         _exit(-1);
