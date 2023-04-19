@@ -106,10 +106,7 @@ void send_exec_time(Message m, Task t){
         _exit(-1);
     }
 
-    Message response = malloc(sizeof(struct message));
-    response->type = 5;
-    response->msg.time = t->exec_time;
-    write(response_fd, response, sizeof(struct message));
+    write(response_fd, &t->exec_time, sizeof(long int));
     close(response_fd);
 }
 

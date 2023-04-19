@@ -152,15 +152,9 @@ int main(int argc, char * argv[]){
             // 10. Esperar comunicação no path enviado ao monitor
 
             ssize_t bytes_read; 
-            Message response = malloc(sizeof(struct message));
-            while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
-                if(response->type == 5){
-                    // 11. Apresentar resposta no STDOUT
-                    printf("Ended in %ldms\n", response->msg.time);
-                }
-                else {
-                    printf("Something went wrong!\n");
-                }
+            long int response;
+            while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
+                printf("Ended in %ldms\n", response);
             }
 
             // 12. Fechar escrita para o pipe por parte do cliente
@@ -192,7 +186,7 @@ int main(int argc, char * argv[]){
             perror("Error creating response pipe.\n");
             _exit(-1);
         }
-        
+
         // 3. Enviar request ao monitor
         write(main_channel_fd, request,sizeof(struct message));
         

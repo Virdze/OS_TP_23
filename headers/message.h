@@ -40,8 +40,6 @@ typedef struct message {
             char response_path[50];
             pid_t request_pids[100];
         } StatusTimeRequest;
-
-        long int time;
     } msg;
 
 } * Message ;
