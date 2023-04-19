@@ -46,8 +46,19 @@ void printStatusResponse(Message m){
     printf("================================\n");
 }
 
+void printStatusTimeResponse(long int response){
+    printf("================================\n");
+    printf("Total execution time is %ld ms\n",response);
+    printf("================================\n");
+}
+
 // =====================================================================================
 
+
+//  =================================== ** Messages ** ===================================
+
+
+// =====================================================================================
 void executeSingle(char ** command){
     pid_t pid;
     int status;
@@ -175,16 +186,17 @@ int main(int argc, char * argv[]){
         strncpy(request->msg.StatusRequest.response_path,path,sizeof(request->msg.StatusRequest.response_path) - 1);
         request->msg.StatusRequest.response_path[sizeof(request->msg.StatusRequest.response_path) - 1] = '\0';
         
-        // 3. Enviar request ao monitor
-        write(main_channel_fd, request,sizeof(struct message));
-        
-
         // 4. Criar fifo
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
             perror("Error creating response pipe.\n");
             _exit(-1);
         }
+        
+        // 3. Enviar request ao monitor
+        write(main_channel_fd, request,sizeof(struct message));
+        
+
 
         // 5. Abrir comunicação 
         int response_fd;
@@ -206,6 +218,46 @@ int main(int argc, char * argv[]){
 
         // 8. Fechar descritores e destruir o fifo criado
         
+        close(main_channel_fd);
+        close(response_fd);
+        unlink(path);
+    }
+    else if(!strcmp(argv[1], "stats-time")){
+        pid_t pid = getpid();
+        Message request = malloc(sizeof(struct message));
+        request->type=5;
+
+        for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
+            request->msg.StatusTimeRequest.request_pids[j] = atoi(argv[i]);
+        }
+        char path[50];
+        sprintf(path,"../tmp/process_%d", pid);
+        strncpy(request->msg.StatusTimeRequest.response_path,path,sizeof(request->msg.StatusTimeRequest.response_path) - 1);
+        request->msg.StatusTimeRequest.response_path[sizeof(request->msg.StatusTimeRequest.response_path) - 1] = '\0';
+        
+        write(main_channel_fd, request, sizeof(struct message));
+
+        // 4. Criar fifo
+        int response_fifo;
+        if((response_fifo = mkfifo(path, 0666)) < 0){
+            perror("Error creating response pipe.\n");
+            _exit(-1);
+        }
+
+        // 5. Abrir comunicação 
+        int response_fd;
+        if((response_fd = open(path, O_RDONLY)) < 0){
+            perror("Error opening fifo!\n");
+            _exit(-1);
+        }
+        
+        // 6. Esperar resposta 
+        ssize_t bytes_read;
+        long int response;
+        while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
+            printStatusTimeResponse(response);
+        }
+
         close(main_channel_fd);
         close(response_fd);
         unlink(path);

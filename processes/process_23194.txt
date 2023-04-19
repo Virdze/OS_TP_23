@@ -1,2 +1,0 @@
-Program name: ls
-Time: 12036ms

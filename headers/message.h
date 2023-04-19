@@ -36,6 +36,11 @@ typedef struct message {
             long int time_elapsed;
         } StatusResponse;
 
+        struct status_time_request {
+            char response_path[50];
+            pid_t request_pids[100];
+        } StatusTimeRequest;
+
         long int time;
     } msg;
 

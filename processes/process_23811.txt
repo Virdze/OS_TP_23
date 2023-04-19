@@ -1,2 +1,0 @@
-Program name: wc
-Time: 180397ms

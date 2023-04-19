@@ -17,9 +17,12 @@
 Task * done;
 Task * requests;
 int requests_count = 0,
-    done_count = 0;
+    done_count = 0,
+    pids_count = 0;
 int main_channel_fd;
 char * folders_path;
+pid_t * pids;
+
 
 // =====================================================================================
 
@@ -47,10 +50,25 @@ void printUsage(){
 
 // =====================================================================================
 
+void addPid(pid_t pid){
+    pids_count++;
+    pids = realloc(pids,pids_count * sizeof(pid));
+    pids[pids_count - 1] = pid;
+}
+
 void addRequest(Task task){
     requests_count++;
     requests = realloc(requests, requests_count * sizeof(struct task));
     requests[requests_count-1] = task;
+}
+
+Task findRequest(pid_t pid){
+    Task r = malloc(sizeof(struct task));
+    for(int i = 0; i < requests_count;i++){
+        if(requests[i]->process_pid == pid)
+            r = requests[i];
+    }
+    return r;
 }
 
 void finishRequest(Task task){
@@ -73,21 +91,12 @@ void finishRequest(Task task){
     }
 }
 
-Task createStartTask(Message m){
+Task createTask(Message m){
     Task new_task = malloc(sizeof(struct task));
     new_task->process_pid = m->msg.EStart.process_pid;
     strcpy(new_task->task_name,m->msg.EStart.task_name);
     new_task->exec_time = m->msg.EStart.start;
     return new_task;
-}
-
-Task findRequest(pid_t pid){
-    Task r = malloc(sizeof(struct task));
-    for(int i = 0; i < requests_count;i++){
-        if(requests[i]->process_pid == pid)
-            r = requests[i];
-    }
-    return r;
 }
 
 void send_exec_time(Message m, Task t){
@@ -129,6 +138,30 @@ void status_response(Message m){
     close(response_fd);
 }
 
+void status_time_response(Message m){
+    int response_fd;
+    if((response_fd = open(m->msg.StatusRequest.response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+
+    long int response = 0;
+
+    for(int i = 0; m->msg.StatusTimeRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->msg.StatusTimeRequest.request_pids[i];
+        for(int j = 0, flag = 0; !flag ; j++){
+            if(target == done[j]->process_pid){
+                printf("Found!\n");
+                response += done[j]->exec_time;
+                flag = 1;
+            }
+        }
+    }
+
+    write(response_fd, &response, sizeof(long int));
+    close(response_fd);
+}
+
 void save_task(Task t){
     char path[50];
     char task_file[20];
@@ -155,13 +188,11 @@ void save_task(Task t){
 void monitoring(){
     ssize_t bytes_read;
     Message new_message = malloc(sizeof(struct message));
-    pid_t pids[1024];
-    int sons = 0;
     int flag = 0;
     while(!flag){
         while((bytes_read = read(main_channel_fd,new_message,sizeof(struct message))) > 0){
             if(new_message->type == 1){
-                Task t = createStartTask(new_message);
+                Task t = createTask(new_message);
                 addRequest(t);
             }
             else if(new_message->type == 2){
@@ -181,26 +212,33 @@ void monitoring(){
                     printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
                     save_task(t);
                     _exit(0);
-                } else {
-                    pids[sons] = pid;
-                    sons++;
-                }
+                } else addPid(pid);
             }
             else if(new_message->type == 3){
                 pid_t pid;
-
                 if((pid = fork()) < 0){
-                    perror("Error using fork()!");
+                    perror("Error using fork()!\n");
                     _exit(-1);
                 }
                 else if(!pid){
                     status_response(new_message);
                     printf("%d sended message to the user waiting!\n", getpid());
                     _exit(0);
-                } else {
-                    pids[sons] = pid;
-                    sons++;
+                } else addPid(pid);
+        
+            }
+            else if(new_message->type == 5){
+                pid_t pid;
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!\n");
+                    _exit(-1);
                 }
+                else if(!pid){
+                    status_time_response(new_message);
+                    printf("%d sended message to the user waiting!\n", getpid());
+                    _exit(0);
+                }
+                else addPid(pid);
             }
             else if(new_message->type == -1){
                 flag = 1;
@@ -213,9 +251,9 @@ void monitoring(){
 
     // Wait to catch all the sons that were created during the monitor life-span
 
-    for(int i = 0; i < sons; i++){
+    for(int i = 0; i < pids_count; i++){
         int status;
-        waitpid(pids[0],&status,0);
+        waitpid(pids[i],&status,0);
     }
 }
 
