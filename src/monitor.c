@@ -65,8 +65,10 @@ void addRequest(Task task){
 Task findRequest(pid_t pid){
     Task r = malloc(sizeof(struct task));
     for(int i = 0; i < requests_count;i++){
-        if(requests[i]->process_pid == pid)
+        if(requests[i]->process_pid == pid){
             r = requests[i];
+            break;
+        }
     }
     return r;
 }
@@ -101,6 +103,18 @@ Task createSingleTask(Message m){
     return new_task;
 }
 
+Task createPipelineTask(Message m){
+    Task new_task = malloc(sizeof(struct task));
+    new_task->type = 2;
+    new_task->process_pid = m->msg.PStart.process_pid;
+    for(int i = 0; i < m->msg.PStart.nr_commands; i++){
+        strncpy(new_task->tt.Pipeline.tasks_names[i],m->msg.PStart.tasks_names[i],sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
+        new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
+    }
+    new_task->tt.Pipeline.exec_times[0] = m->msg.PStart.start;
+    return new_task;
+}
+
 void send_exec_time_single(Message m, Task t){
     int response_fd;
     if((response_fd = open(m->msg.EEnd.response_path, O_WRONLY)) < 0){
@@ -109,6 +123,17 @@ void send_exec_time_single(Message m, Task t){
     }
 
     write(response_fd, &t->tt.Single.exec_time, sizeof(long int));
+    close(response_fd);
+}
+
+void send_exec_time_pipeline(Message m, Task t){
+    int response_fd;
+    if((response_fd = open(m->msg.PEnd.response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+
+    write(response_fd, &t->tt.Pipeline.exec_times[0],sizeof(long int));
     close(response_fd);
 }
 
@@ -214,6 +239,29 @@ void monitoring(){
                 }
                 else if (!pid){
                     send_exec_time_single(new_message, t);
+                    printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
+                    save_single_task(t);
+                    _exit(0);
+                } else addPid(pid);
+            }
+            else if(new_message->type == 3){
+                Task t = createPipelineTask(new_message);
+                addRequest(t);
+            }
+            else if(new_message->type == 4){
+                pid_t pid;
+
+                Task t = findRequest(new_message->msg.PEnd.process_pid);
+                long int initial_time = t->tt.Pipeline.exec_times[0];
+                t->tt.Pipeline.exec_times[0] = new_message->msg.PEnd.exec_times - initial_time;
+                finishRequest(t);
+
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!\n");
+                    _exit(-1);
+                }
+                else if (!pid){
+                    send_exec_time_pipeline(new_message, t);
                     printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
                     save_single_task(t);
                     _exit(0);

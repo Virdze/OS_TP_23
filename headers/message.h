@@ -20,12 +20,14 @@ typedef struct message {
         struct execute_pipeline_start { // 3 - Tracer -> Monitor (Starting Execute Pipeline)
             char tasks_names[20][50];
             pid_t process_pid;
+            int nr_commands;
             long int start;
         } PStart;
 
         struct execute_pipeline_end { // 4 - Tracer -> Monitor (Finish Execute Pipeline)
             char response_path[50];
-            long int exec_times[20];
+            pid_t process_pid;
+            long int exec_times;
         } PEnd;
 
         struct status_request { // 5 - Tracer -> Monitor (Status request)

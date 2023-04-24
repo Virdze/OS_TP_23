@@ -12,6 +12,7 @@ typedef struct task {
         } Single;
         struct multi_task {
             char tasks_names[20][50];
+            int nr_commands;
             long int exec_times[20];
         } Pipeline;
     } tt;    

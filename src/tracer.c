@@ -27,6 +27,17 @@ long int get_time_of_day(){
     return time;
 }
 
+void parseCommand(char * command_string, char ** command){
+    
+    int nr_args = 0;
+    char * token = strtok(command_string, " ");
+    while (token != NULL){
+        command[nr_args++] = token;
+        token = strtok(NULL," ");
+    }
+    command[nr_args] = NULL;
+}
+
 //  =================================== ** PRINTS ** ===================================
 
 void printUsage(){
@@ -64,7 +75,7 @@ void executeSingle(char ** command){
     pid_t pid;
     int status;
     if((pid = fork()) < 0){
-        perror("Error using fork()!\n");
+        perror("Error using fork()!");
         _exit(-1);
     }
     else if(!pid){
@@ -72,6 +83,103 @@ void executeSingle(char ** command){
         _exit(1);
     }
     else wait(&status); 
+}
+
+void executePipeline(char ** commands, int nr_commands){
+
+    pid_t pid;
+    pid_t pids[nr_commands];
+
+    int status;
+    int fd[nr_commands-1][2];
+
+    for(int i = 0; i < nr_commands-1; i++){
+        if(pipe(fd[i]) < 0){
+            perror("Error while creating pipe");
+            _exit(-1);
+        }
+    }
+
+    for(int i = 0; i < nr_commands; i ++){
+        if((pid = fork()) < 0){
+            perror("Error while using fork()!");
+            _exit(-1);
+        }
+        else if(!pid){
+            if(i == 0){ // First command
+                // Close reading from 1st pipe,
+                // redirecting the STDOUT to the writing end of the pipe
+                close(fd[0][0]);
+                dup2(fd[0][1],1);
+                close(fd[0][1]);
+                
+                // Close other ends of all pipes that won't be used to ensure EOF
+                for(int j = 1 ; j < nr_commands - 1; j++){
+                    close(fd[j][0]);
+                    close(fd[j][1]);
+                }
+
+
+                // Parse string with command and arguments
+                char * command[50];
+                parseCommand(commands[i],command);
+
+                // Execute command
+                execvp(command[0], command);
+                _exit(-1);
+            }
+            else if(i == nr_commands - 1){
+                close(fd[i-1][1]);
+                dup2(fd[i-1][0], 0);
+                close(fd[i-1][0]);
+
+                for(int j = 0; j < nr_commands - 2; j++){
+                    close(fd[j][0]);
+                    close(fd[j][1]);
+                }
+
+                char * command[50];
+                parseCommand(commands[i],command);
+                execvp(command[0],command);
+                _exit(-1);
+            }
+            else{
+                close(fd[i-1][1]);
+                dup2(fd[i-1][0], 0);
+                close(fd[i-1][0]);
+                close(fd[i][0]);
+                dup2(fd[i][1],1);
+                close(fd[i][1]);
+
+                for (int j = 0; j < nr_commands - 1; j++) {
+                    if (j != i - 1 && j != i) {
+                        close(fd[j][0]);
+                        close(fd[j][1]);
+                    }
+                }
+
+                char * command[50];
+                parseCommand(commands[i],command);
+                execvp(command[0],command);
+                _exit(-1);
+            }
+        }
+        else pids[i] = pid;
+    }
+
+    for(int i = 0 ; i < nr_commands-1; i++){
+        close(fd[i][0]);
+        close(fd[i][1]);
+    }
+
+    for(int i = 0 ; i < nr_commands; i++){
+        waitpid(pids[i],&status,0);
+        if(WEXITSTATUS(status) < 0){
+            printf("Something went wrong!\n");
+            break;
+        }
+        else printf("Command runned!\n");   
+    }    
 }
 
 int initMainChannel(){
@@ -129,16 +237,16 @@ int main(int argc, char * argv[]){
             sprintf(path,"../tmp/process_%d", pid);
             strncpy(end_message->msg.EEnd.response_path,path,sizeof(end_message->msg.EEnd.response_path) - 1);
             end_message->msg.EEnd.response_path[sizeof(end_message->msg.EEnd.response_path) - 1] = '\0';
-            // 7. Enviar informação para o monitor
-            write(main_channel_fd, end_message ,sizeof(struct message));
-            
-            // 8. Criar fifo para receber resposta 
+            // 7. Criar fifo para receber resposta 
 
             int response_fifo;
             if((response_fifo = mkfifo(path, 0666)) < 0){
                 perror("Error creating response pipe.\n");
                 _exit(-1);
             }
+            // 8. Enviar informação para o monitor
+            write(main_channel_fd, end_message ,sizeof(struct message));
+            
 
             // 9. Abrir comunicação
             int response_fd;
@@ -160,30 +268,78 @@ int main(int argc, char * argv[]){
             close(response_fd);
             unlink(path);
         }
-        else if (!strcmp(argv[2], "-p")){
+        else if (!strcmp(argv[2], "-p")) {
             // pipeline de programas
-/*
-            pid_t pid = getpid();
 
+            pid_t pid = getpid();
+            
             char * tasks[50];
-            int nr_comands = 0;
-            for(int i = 3; i < argc ; i++){
-                if(!strcmp(argv[i],"|")){
-                    strcat(tasks[nr_comands], NULL);
-                    nr_comands++;
+            int nr_commands = 0;
+            char * token = strtok(argv[3], "|");
+            while(token != NULL){
+                if(nr_commands > 20){
+                    printf("Resources not enought to support more than 20 commands!\n");
+                    _exit(-1);
                 }
-                else{
-                    strcat(tasks[nr_comands], argv[i]);
-                    strcat(tasks[nr_comands], " "); 
-                } 
+                tasks[nr_commands] = token;
+                nr_commands++;
+                token = strtok(NULL,"|");
             }
 
-            Message start_message = malloc(sizeof(start_message));
-            start_message->type = 6;
+            Message start_message = malloc(sizeof(struct message));
+            start_message->type = 3;
+            start_message->msg.PStart.process_pid = pid;
+            
+            for(int i = 0; i < nr_commands; i++){
+                strncpy(start_message->msg.PStart.tasks_names[i], tasks[i], sizeof(start_message->msg.PStart.tasks_names[i]) - 1);
+                start_message->msg.PStart.tasks_names[i][sizeof(start_message->msg.PStart.tasks_names[i]) - 1] = '\0';
+            }
+            
+            start_message->msg.PStart.nr_commands = nr_commands;
+            start_message->msg.PStart.start = get_time_of_day();
+            
+            write(main_channel_fd, start_message, sizeof(struct message));
+            printf("Running PID %d\n", pid);
+            
+            executePipeline(tasks, nr_commands);
+
+            Message end_message = malloc(sizeof(struct message));
+            end_message->type = 4;
+            end_message->msg.PEnd.process_pid = pid;
+            end_message->msg.PEnd.exec_times = get_time_of_day();
+            char path[50];
+            sprintf(path,"../tmp/process_%d", pid);
+            strncpy(end_message->msg.PEnd.response_path,path,sizeof(end_message->msg.PEnd.response_path) - 1);
+            end_message->msg.PEnd.response_path[sizeof(end_message->msg.PEnd.response_path) - 1] = '\0';
             
 
-*/
+            int response_fifo;
+            if((response_fifo = mkfifo(path, 0666)) < 0){
+                perror("Error creating response pipe.\n");
+                _exit(-1);
+            }
 
+            write(main_channel_fd, end_message, sizeof(struct message));
+            
+            int response_fd;
+            if((response_fd = open(path, O_RDONLY)) < 0){
+                perror("Error opening fifo!");
+                _exit(-1);
+            }
+            
+            // 10. Esperar comunicação no path enviado ao monitor
+
+            ssize_t bytes_read; 
+            long int response;
+            while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
+                printf("Ended in %ldms\n", response);
+            }
+
+            // 12. Fechar escrita para o pipe por parte do cliente
+            close(main_channel_fd);
+            close(response_fd);
+            unlink(path);
+            
 
         }
     }
@@ -207,9 +363,9 @@ int main(int argc, char * argv[]){
             perror("Error creating response pipe.\n");
             _exit(-1);
         }
-
         // 3. Enviar request ao monitor
         write(main_channel_fd, request,sizeof(struct message));
+
         
         // 5. Abrir comunicação 
         int response_fd;
@@ -280,7 +436,6 @@ int main(int argc, char * argv[]){
         write(main_channel_fd,end,sizeof(struct message));
         close(main_channel_fd);
     }
-    else ;
 
     return 0;
 }
