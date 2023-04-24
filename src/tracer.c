@@ -18,7 +18,8 @@ int main_channel_fd;
 
 // =====================================================================================
 
-#define WRITE_TO(fd, string) write(fd,string,sizeof(string));
+//  =================================== ** AUX ** ===================================
+
 long int get_time_of_day(){
     struct timeval t;
     gettimeofday(&t,NULL);
@@ -72,6 +73,7 @@ void executeSingle(char ** command){
     }
     else wait(&status); 
 }
+
 int initMainChannel(){
     //  Abrir comunicação do lado do tracer 
     if ((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
@@ -95,12 +97,8 @@ int main(int argc, char * argv[]){
             //  1. Recolher informação do pedido
 
             pid_t pid = getpid();
-            char task_name[20];
-
-            strcpy(task_name,argv[3]);
-            char * command[argc - 2];
-            command[0] = task_name;
-            for(int i = 4, j = 1; i < argc ; i++, j++){
+            char * command[50];
+            for(int i = 3, j = 0; i < argc ; i++, j++){
                 command[j] = argv[i];
             }
             command[argc - 3] = NULL;   
@@ -111,7 +109,8 @@ int main(int argc, char * argv[]){
             start_message->type = 1;
             start_message->msg.EStart.start = get_time_of_day();
             start_message->msg.EStart.process_pid = pid;
-            strcpy(start_message->msg.EStart.task_name,task_name);        
+            strncpy(start_message->msg.EStart.task_name,command[0],sizeof(start_message->msg.EStart.task_name) - 1);
+            start_message->msg.EStart.task_name[sizeof(start_message->msg.EStart.task_name) - 1] = '\0';
 
             // 3. Enviar informação para o monitor
             write(main_channel_fd, start_message, sizeof(struct message));
@@ -144,7 +143,7 @@ int main(int argc, char * argv[]){
             // 9. Abrir comunicação
             int response_fd;
             if((response_fd = open(path, O_RDONLY)) < 0){
-                perror("Error opening fifo!\n");
+                perror("Error opening fifo!");
                 _exit(-1);
             }
             
@@ -163,6 +162,29 @@ int main(int argc, char * argv[]){
         }
         else if (!strcmp(argv[2], "-p")){
             // pipeline de programas
+/*
+            pid_t pid = getpid();
+
+            char * tasks[50];
+            int nr_comands = 0;
+            for(int i = 3; i < argc ; i++){
+                if(!strcmp(argv[i],"|")){
+                    strcat(tasks[nr_comands], NULL);
+                    nr_comands++;
+                }
+                else{
+                    strcat(tasks[nr_comands], argv[i]);
+                    strcat(tasks[nr_comands], " "); 
+                } 
+            }
+
+            Message start_message = malloc(sizeof(start_message));
+            start_message->type = 6;
+            
+
+*/
+
+
         }
     }
     else if(!strcmp(argv[1],"status")){
@@ -171,7 +193,7 @@ int main(int argc, char * argv[]){
 
         // 2. Criar request
         Message request = malloc(sizeof(struct message));
-        request->type = 3;
+        request->type = 5;
         request->msg.StatusRequest.clock = get_time_of_day();
         // 2.1 - Criar request path
         char path[50];
@@ -189,8 +211,6 @@ int main(int argc, char * argv[]){
         // 3. Enviar request ao monitor
         write(main_channel_fd, request,sizeof(struct message));
         
-
-
         // 5. Abrir comunicação 
         int response_fd;
         if((response_fd = open(path, O_RDONLY)) < 0){
@@ -202,7 +222,7 @@ int main(int argc, char * argv[]){
         ssize_t bytes_read; 
         Message response = malloc(sizeof(struct message));
         while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
-            if(response->type == 4){
+            if(response->type == 6){
                 // 7. Apresentar resposta no STDOUT
                 //printf("%d\n",response->msg.StatusResponse.process_pid);
                 printStatusResponse(response);
@@ -218,33 +238,31 @@ int main(int argc, char * argv[]){
     else if(!strcmp(argv[1], "stats-time")){
         pid_t pid = getpid();
         Message request = malloc(sizeof(struct message));
-        request->type=5;
+        request->type=7;
 
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
-            request->msg.StatusTimeRequest.request_pids[j] = atoi(argv[i]);
+            request->msg.StatsTimeRequest.request_pids[j] = atoi(argv[i]);
         }
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatusTimeRequest.response_path,path,sizeof(request->msg.StatusTimeRequest.response_path) - 1);
-        request->msg.StatusTimeRequest.response_path[sizeof(request->msg.StatusTimeRequest.response_path) - 1] = '\0';
+        strncpy(request->msg.StatsTimeRequest.response_path,path,sizeof(request->msg.StatsTimeRequest.response_path) - 1);
+        request->msg.StatsTimeRequest.response_path[sizeof(request->msg.StatsTimeRequest.response_path) - 1] = '\0';
         
-        write(main_channel_fd, request, sizeof(struct message));
-
-        // 4. Criar fifo
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
             perror("Error creating response pipe.\n");
             _exit(-1);
         }
 
-        // 5. Abrir comunicação 
+        write(main_channel_fd, request, sizeof(struct message));
+
+
         int response_fd;
         if((response_fd = open(path, O_RDONLY)) < 0){
             perror("Error opening fifo!\n");
             _exit(-1);
         }
         
-        // 6. Esperar resposta 
         ssize_t bytes_read;
         long int response;
         while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
