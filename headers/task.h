@@ -13,7 +13,7 @@ typedef struct task {
         struct multi_task {
             char tasks_names[20][50];
             int nr_commands;
-            long int exec_times[20];
+            long int exec_time;
         } Pipeline;
     } tt;    
 } * Task;

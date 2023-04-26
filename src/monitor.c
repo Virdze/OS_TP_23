@@ -37,6 +37,7 @@ void printDoneList(){
         printSingleTask(done[i]);
 }
 
+
 void printRequests(){
     for(int i = 0; i < requests_count; i++)
         printSingleTask(requests[i]);
@@ -111,7 +112,7 @@ Task createPipelineTask(Message m){
         strncpy(new_task->tt.Pipeline.tasks_names[i],m->msg.PStart.tasks_names[i],sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
         new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
     }
-    new_task->tt.Pipeline.exec_times[0] = m->msg.PStart.start;
+    new_task->tt.Pipeline.exec_time = m->msg.PStart.start;
     return new_task;
 }
 
@@ -133,7 +134,7 @@ void send_exec_time_pipeline(Message m, Task t){
         _exit(-1);
     }
 
-    write(response_fd, &t->tt.Pipeline.exec_times[0],sizeof(long int));
+    write(response_fd, &t->tt.Pipeline.exec_time,sizeof(long int));
     close(response_fd);
 }
 
@@ -252,8 +253,8 @@ void monitoring(){
                 pid_t pid;
 
                 Task t = findRequest(new_message->msg.PEnd.process_pid);
-                long int initial_time = t->tt.Pipeline.exec_times[0];
-                t->tt.Pipeline.exec_times[0] = new_message->msg.PEnd.exec_times - initial_time;
+                long int initial_time = t->tt.Pipeline.exec_time;
+                t->tt.Pipeline.exec_time = new_message->msg.PEnd.exec_times - initial_time;
                 finishRequest(t);
 
                 if((pid = fork()) < 0){
@@ -263,7 +264,6 @@ void monitoring(){
                 else if (!pid){
                     send_exec_time_pipeline(new_message, t);
                     printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
-                    save_single_task(t);
                     _exit(0);
                 } else addPid(pid);
             }
@@ -297,7 +297,7 @@ void monitoring(){
                 flag = 1;
                 break;
             }
-            free(new_message); // Clear message
+            
         }
     }
 
