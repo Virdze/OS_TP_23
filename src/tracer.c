@@ -50,11 +50,23 @@ void printUsage(){
     printf("6: ./tracer stats-uniq PID-1 PID-2 (...) PID-N\n");
 }
 
-void printStatusResponse(Message m){
+void print_status_response_single(Message m){
     printf("================================\n");
-    printf("PID: %d\n", m->msg.StatusResponse.process_pid);
-    printf("Task(s): %s\n", m->msg.StatusResponse.task_name);
-    printf("Time Elapsed: %ldms\n", m->msg.StatusResponse.time_elapsed);
+    printf("PID: %d\n", m->msg.StatusResponseS.process_pid);
+    printf("Task: %s\n", m->msg.StatusResponseS.task_name);
+    printf("Time Elapsed: %ldms\n", m->msg.StatusResponseS.time_elapsed);
+    printf("================================\n");
+}
+
+void print_status_response_pipeline(Message m){
+    printf("================================\n");
+    printf("PID: %d\n", m->msg.StatusResponseP.process_pid);
+    printf("Tasks:\n");
+    for(int i = 0; i < (m->msg.StatusResponseP.nr_comandos) - 1;i++){
+        printf("%s |", m->msg.StatusResponseP.tasks_pipeline[i]);
+    }
+    printf("%s \n", m->msg.StatusResponseP.tasks_pipeline[(m->msg.StatusResponseP.nr_comandos) - 1]);
+    printf("Time Elapsed: %ldms\n", m->msg.StatusResponseS.time_elapsed);
     printf("================================\n");
 }
 
@@ -206,10 +218,14 @@ int main(int argc, char * argv[]){
 
             pid_t pid = getpid();
             char * command[50];
-            for(int i = 3, j = 0; i < argc ; i++, j++){
-                command[j] = argv[i];
+            char * token = strtok(argv[3]," ");
+            int i = 0;
+            while(token != NULL){
+                command[i++] = token;
+                token = strtok(NULL," ");
             }
-            command[argc - 3] = NULL;   
+
+            command[i] = NULL;   
     
             // 2. Criar Mensagem de início de execução
             
@@ -285,6 +301,7 @@ int main(int argc, char * argv[]){
                 nr_commands++;
                 token = strtok(NULL,"|");
             }
+            
 
             Message start_message = malloc(sizeof(struct message));
             start_message->type = 3;
@@ -306,7 +323,7 @@ int main(int argc, char * argv[]){
             Message end_message = malloc(sizeof(struct message));
             end_message->type = 4;
             end_message->msg.PEnd.process_pid = pid;
-            end_message->msg.PEnd.exec_times = get_time_of_day();
+            end_message->msg.PEnd.exec_time = get_time_of_day();
             char path[50];
             sprintf(path,"../tmp/process_%d", pid);
             strncpy(end_message->msg.PEnd.response_path,path,sizeof(end_message->msg.PEnd.response_path) - 1);
@@ -378,10 +395,10 @@ int main(int argc, char * argv[]){
         ssize_t bytes_read; 
         Message response = malloc(sizeof(struct message));
         while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
-            if(response->type == 6){
-                // 7. Apresentar resposta no STDOUT
-                //printf("%d\n",response->msg.StatusResponse.process_pid);
-                printStatusResponse(response);
+            if(response->type == 6)
+                print_status_response_single(response);
+            else if (response->type == 7){
+                print_status_response_pipeline(response);
             }
         }
 

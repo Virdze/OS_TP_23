@@ -32,15 +32,31 @@ pid_t * pids;
 void printSingleTask(Task t){
     printf("%d\n%s\n%ldms\n",t->process_pid,t->tt.Single.task_name, t->tt.Single.exec_time);
 }
-void printDoneList(){
-    for(int i = 0; i < done_count; i++)
-        printSingleTask(done[i]);
+
+void printPipelineTask(Task t){
+    printf("PID: %d\n", t->process_pid);
+    for(int i = 0; i < (t->tt.Pipeline.nr_commands) - 1 ; i++){
+        printf("%s |", t->tt.Pipeline.tasks_names[i]);
+    }
+    printf("%s \n", t->tt.Pipeline.tasks_names[(t->tt.Pipeline.nr_commands) - 1]);
+    printf("%ldms \n", t->tt.Pipeline.exec_time);
 }
 
+void printDoneList(){
+    for(int i = 0; i < done_count; i++)
+        if(done[i]->type == 1)
+            printSingleTask(done[i]);
+        else if ( done[i]->type == 2)
+            printPipelineTask(done[i]);
+}
 
 void printRequests(){
     for(int i = 0; i < requests_count; i++)
-        printSingleTask(requests[i]);
+        if(requests[i]->type == 1)
+            printSingleTask(requests[i]);
+        else if (requests[i]->type == 2)
+            printPipelineTask(requests[i]);
+        
 }
 
 void printUsage(){
@@ -58,20 +74,42 @@ void addPid(pid_t pid){
 }
 
 void addRequest(Task task){
+    Task new_task = malloc(sizeof(struct task));
+    new_task->type = task->type;
+    new_task->process_pid = task->process_pid;
+
+    if(task->type == 1){
+        strncpy(new_task->tt.Single.task_name, task->tt.Single.task_name, sizeof(new_task->tt.Single.task_name) - 1);
+        new_task->tt.Single.task_name[sizeof(new_task->tt.Single.task_name) - 1] = '\0';
+        new_task->tt.Single.exec_time = task->tt.Single.exec_time;
+    }
+    else if(task->type == 2){
+        for(int i = 0 ; i < task->tt.Pipeline.nr_commands ; i++){
+            strncpy(new_task->tt.Pipeline.tasks_names[i], task->tt.Pipeline.tasks_names[i], sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
+            new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
+        }
+        new_task->tt.Pipeline.nr_commands = task->tt.Pipeline.nr_commands;
+        new_task->tt.Pipeline.exec_time = task->tt.Pipeline.exec_time;
+
+    }
+
+    requests = realloc(requests, (requests_count + 1) * sizeof(struct task));
+    requests[requests_count] = new_task;
     requests_count++;
-    requests = realloc(requests, requests_count * sizeof(struct task));
-    requests[requests_count-1] = task;
 }
 
 Task findRequest(pid_t pid){
-    Task r = malloc(sizeof(struct task));
-    for(int i = 0; i < requests_count;i++){
-        if(requests[i]->process_pid == pid){
-            r = requests[i];
-            break;
+    
+    for (int i = 0; i < requests_count; i++) {
+        if (requests[i]->process_pid == pid) {
+            Task new_task = (Task) malloc(sizeof(struct task));
+            memcpy(new_task, requests[i], sizeof(struct task));
+            return new_task;
         }
     }
-    return r;
+
+    return NULL;
+
 }
 
 void finishRequest(Task task){
@@ -112,6 +150,7 @@ Task createPipelineTask(Message m){
         strncpy(new_task->tt.Pipeline.tasks_names[i],m->msg.PStart.tasks_names[i],sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
         new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
     }
+    new_task->tt.Pipeline.nr_commands = m->msg.PStart.nr_commands;
     new_task->tt.Pipeline.exec_time = m->msg.PStart.start;
     return new_task;
 }
@@ -151,18 +190,26 @@ void status_response(Message m){
         // 2 . Constroi resposta
         if(requests[i]->type == 1){
             response->type = 6;
-            response->msg.StatusResponse.process_pid = requests[i]->process_pid;
-            strcpy(response->msg.StatusResponse.task_name,requests[i]->tt.Single.task_name);
-            response->msg.StatusResponse.time_elapsed = m->msg.StatusRequest.clock - requests[i]->tt.Single.exec_time;
+            response->msg.StatusResponseS.process_pid = requests[i]->process_pid;
+            strncpy(response->msg.StatusResponseS.task_name,requests[i]->tt.Single.task_name, sizeof(response->msg.StatusResponseS.task_name) - 1);
+            response->msg.StatusResponseS.task_name[sizeof(response->msg.StatusResponseS.task_name) - 1] = '\0';
+            response->msg.StatusResponseS.time_elapsed =  m->msg.StatusRequest.clock - requests[i]->tt.Single.exec_time;
             // 3. Write da resposta 
             write(response_fd, response, sizeof(struct message));
-            free(response);
         }
-        else{
-            // Resposta para uma task com pipeline 
+        else if(requests[i]->type == 2){
+            // Resposta para uma task com pipeline
+            response->type = 7;
+            response->msg.StatusResponseP.process_pid = requests[i]->process_pid;
+            for(int i = 0; i < requests[i]->tt.Pipeline.nr_commands ; i++){
+                strncpy(response->msg.StatusResponseP.tasks_pipeline[i],requests[i]->tt.Pipeline.tasks_names[i],sizeof(response->msg.StatusResponseP.tasks_pipeline[i]) - 1);
+                response->msg.StatusResponseP.tasks_pipeline[i][sizeof(response->msg.StatusResponseP.tasks_pipeline[i]) - 1] = '\0';
+            }
+            response->msg.StatusResponseP.time_elapsed = requests[i]->tt.Pipeline.exec_time - m->msg.StatusRequest.clock;
+            // 3. Write da resposta 
+            write(response_fd, response, sizeof(struct message));
         }
     }
-
 
     // 4. Fechar Pipe
     close(response_fd);
@@ -183,7 +230,9 @@ void stats_time_response(Message m){
             if(target == done[j]->process_pid){
                 if(done[j]->type == 1)
                     response += done[j]->tt.Single.exec_time;
-                else ; // Código para adicionar o tempo caso seja uma task com pipeline
+                else{
+                    response += done[j]->tt.Pipeline.exec_time;
+                }
                 flag = 1;
             }
         }
@@ -225,6 +274,7 @@ void monitoring(){
             if(new_message->type == 1){
                 Task t = createSingleTask(new_message);
                 addRequest(t);
+                printRequests();
             }
             else if(new_message->type == 2){
                 pid_t pid;
@@ -248,13 +298,14 @@ void monitoring(){
             else if(new_message->type == 3){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
+                printRequests();
             }
             else if(new_message->type == 4){
                 pid_t pid;
 
                 Task t = findRequest(new_message->msg.PEnd.process_pid);
                 long int initial_time = t->tt.Pipeline.exec_time;
-                t->tt.Pipeline.exec_time = new_message->msg.PEnd.exec_times - initial_time;
+                t->tt.Pipeline.exec_time = new_message->msg.PEnd.exec_time - initial_time;
                 finishRequest(t);
 
                 if((pid = fork()) < 0){
@@ -297,7 +348,8 @@ void monitoring(){
                 flag = 1;
                 break;
             }
-            
+            free(new_message);
+            new_message = malloc(sizeof(struct message));
         }
     }
 
