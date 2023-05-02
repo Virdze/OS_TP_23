@@ -52,6 +52,12 @@ typedef struct message {
             char response_path[50];
             pid_t request_pids[100];
         } StatsTimeRequest;
+
+        struct stats_command_request { // 9. Tracer -> Monitor (stats command)
+            char response_path[50];
+            char task_name[50];
+            pid_t request_pids[100];
+        } StatsCommandRequest;
     } msg;
 } * Message;
 

@@ -217,7 +217,7 @@ void status_response(Message m){
 
 void stats_time_response(Message m){
     int response_fd;
-    if((response_fd = open(m->msg.StatusRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->msg.StatsTimeRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
@@ -230,7 +230,7 @@ void stats_time_response(Message m){
             if(target == done[j]->process_pid){
                 if(done[j]->type == 1)
                     response += done[j]->tt.Single.exec_time;
-                else{
+                else if(done[j]->type == 2){
                     response += done[j]->tt.Pipeline.exec_time;
                 }
                 flag = 1;
@@ -239,6 +239,36 @@ void stats_time_response(Message m){
     }
 
     write(response_fd, &response, sizeof(long int));
+    close(response_fd);
+}
+
+void stats_command_response(Message m){
+    int response_fd;
+    if((response_fd = open(m->msg.StatsCommandRequest.response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+
+    int response = 0;
+    char * program = strdup(m->msg.StatsCommandRequest.task_name);
+    for(int i = 0; m->msg.StatsCommandRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->msg.StatsCommandRequest.request_pids[i];
+        for(int j = 0,flag = 0; !flag ; j++){
+            if(done[j]->process_pid == target){
+                if(done[j]->type == 1 && !strcmp(program, done[j]->tt.Single.task_name))
+                        response++;
+                else if(done[j]->type == 2){
+                    for(int k = 0; k < done[j]->tt.Pipeline.nr_commands; k++){
+                        char * c = strtok(done[j]->tt.Pipeline.tasks_names[k], " ");
+                        if(!strcmp(program, c))
+                            response++;
+                    }
+                }
+                flag = 1;
+            }
+        }
+    }
+    write(response_fd, &response, sizeof(int));
     close(response_fd);
 }
 
@@ -321,7 +351,7 @@ void monitoring(){
             else if(new_message->type == 5){
                 pid_t pid;
                 if((pid = fork()) < 0){
-                    perror("Error using fork()!\n");
+                    perror("Error using fork()!");
                     _exit(-1);
                 }
                 else if(!pid){
@@ -331,14 +361,27 @@ void monitoring(){
                 } else addPid(pid);
         
             }
-            else if(new_message->type == 7){
+            else if(new_message->type == 8){
                 pid_t pid;
                 if((pid = fork()) < 0){
-                    perror("Error using fork()!\n");
+                    perror("Error using fork()!");
                     _exit(-1);
                 }
                 else if(!pid){
                     stats_time_response(new_message);
+                    printf("%d sended message to the user waiting!\n", getpid());
+                    _exit(0);
+                }
+                else addPid(pid);
+            }
+            else if(new_message->type == 9){
+                pid_t pid;
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!");
+                    _exit(-1);
+                }
+                else if(!pid){
+                    stats_command_response(new_message);
                     printf("%d sended message to the user waiting!\n", getpid());
                     _exit(0);
                 }

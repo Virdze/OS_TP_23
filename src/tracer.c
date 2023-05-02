@@ -38,6 +38,19 @@ void parseCommand(char * command_string, char ** command){
     command[nr_args] = NULL;
 }
 
+void clearToken(char * token){
+    int size = strlen(token);
+    if(token[0] == ' '){
+        for(int i = 0; i < size - 1; i++){
+            token[i] = token[i+1];
+        }
+        token[--size] = '\0';
+    }
+    if(token[size - 1] == ' '){
+        token[size-1] = '\0';
+    }
+}
+
 //  =================================== ** PRINTS ** ===================================
 
 void printUsage(){
@@ -73,6 +86,12 @@ void print_status_response_pipeline(Message m){
 void printStatusTimeResponse(long int response){
     printf("================================\n");
     printf("Total execution time is %ld ms\n",response);
+    printf("================================\n");
+}
+
+void printStatusCommandResponse(char * task_name, int response){
+    printf("================================\n");
+    printf("%s was executed %d times\n",task_name,response);
     printf("================================\n");
 }
 
@@ -297,6 +316,7 @@ int main(int argc, char * argv[]){
                     printf("Resources not enought to support more than 20 commands!\n");
                     _exit(-1);
                 }
+                clearToken(token);
                 tasks[nr_commands] = token;
                 nr_commands++;
                 token = strtok(NULL,"|");
@@ -411,7 +431,7 @@ int main(int argc, char * argv[]){
     else if(!strcmp(argv[1], "stats-time")){
         pid_t pid = getpid();
         Message request = malloc(sizeof(struct message));
-        request->type=7;
+        request->type=8;
 
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
             request->msg.StatsTimeRequest.request_pids[j] = atoi(argv[i]);
@@ -440,6 +460,46 @@ int main(int argc, char * argv[]){
         long int response;
         while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
             printStatusTimeResponse(response);
+        }
+
+        close(main_channel_fd);
+        close(response_fd);
+        unlink(path);
+    }
+    else if(!strcmp(argv[1], "stats-command")){
+        pid_t pid = getpid();
+
+        Message request = malloc(sizeof(struct message));
+        request->type = 9;
+        strncpy(request->msg.StatsCommandRequest.task_name, argv[2], sizeof(request->msg.StatsCommandRequest.task_name) - 1);
+        request->msg.StatsCommandRequest.task_name[sizeof(request->msg.StatsCommandRequest.task_name) - 1] = '\0';
+        for(int i = 3, j = 0; i < argc && i < 100;i++, j++){
+            request->msg.StatsCommandRequest.request_pids[j] = atoi(argv[i]);
+        }
+        char path[50];
+        sprintf(path,"../tmp/process_%d", pid);
+        strncpy(request->msg.StatsCommandRequest.response_path,path,sizeof(request->msg.StatsCommandRequest.response_path) - 1);
+        request->msg.StatsCommandRequest.response_path[sizeof(request->msg.StatsCommandRequest.response_path) - 1] = '\0';
+        
+        int response_fifo;
+        if((response_fifo = mkfifo(path, 0666)) < 0){
+            perror("Error creating response pipe.\n");
+            _exit(-1);
+        }
+
+        write(main_channel_fd, request, sizeof(struct message));
+
+
+        int response_fd;
+        if((response_fd = open(path, O_RDONLY)) < 0){
+            perror("Error opening fifo!\n");
+            _exit(-1);
+        }
+
+        ssize_t bytes_read;
+        int response;
+        while((bytes_read = read(response_fd, &response, sizeof(int))) > 0){
+            printStatusCommandResponse(argv[2], response);
         }
 
         close(main_channel_fd);
