@@ -15,7 +15,7 @@ typedef struct task {
             int nr_commands;
             long int exec_time;
         } Pipeline;
-    } tt;    
+    } info;    
 } * Task;
 
 #endif

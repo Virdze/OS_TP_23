@@ -30,16 +30,16 @@ pid_t * pids;
 //  =================================== ** PRINTS ** ===================================
 
 void printSingleTask(Task t){
-    printf("%d\n%s\n%ldms\n",t->process_pid,t->tt.Single.task_name, t->tt.Single.exec_time);
+    printf("%d\n%s\n%ldms\n",t->process_pid,t->info.Single.task_name, t->info.Single.exec_time);
 }
 
 void printPipelineTask(Task t){
     printf("PID: %d\n", t->process_pid);
-    for(int i = 0; i < (t->tt.Pipeline.nr_commands) - 1 ; i++){
-        printf("%s |", t->tt.Pipeline.tasks_names[i]);
+    for(int i = 0; i < (t->info.Pipeline.nr_commands) - 1 ; i++){
+        printf("%s |", t->info.Pipeline.tasks_names[i]);
     }
-    printf("%s \n", t->tt.Pipeline.tasks_names[(t->tt.Pipeline.nr_commands) - 1]);
-    printf("%ldms \n", t->tt.Pipeline.exec_time);
+    printf("%s \n", t->info.Pipeline.tasks_names[(t->info.Pipeline.nr_commands) - 1]);
+    printf("%ldms \n", t->info.Pipeline.exec_time);
 }
 
 void printDoneList(){
@@ -79,17 +79,17 @@ void addRequest(Task task){
     new_task->process_pid = task->process_pid;
 
     if(task->type == 1){
-        strncpy(new_task->tt.Single.task_name, task->tt.Single.task_name, sizeof(new_task->tt.Single.task_name) - 1);
-        new_task->tt.Single.task_name[sizeof(new_task->tt.Single.task_name) - 1] = '\0';
-        new_task->tt.Single.exec_time = task->tt.Single.exec_time;
+        strncpy(new_task->info.Single.task_name, task->info.Single.task_name, sizeof(new_task->info.Single.task_name) - 1);
+        new_task->info.Single.task_name[sizeof(new_task->info.Single.task_name) - 1] = '\0';
+        new_task->info.Single.exec_time = task->info.Single.exec_time;
     }
     else if(task->type == 2){
-        for(int i = 0 ; i < task->tt.Pipeline.nr_commands ; i++){
-            strncpy(new_task->tt.Pipeline.tasks_names[i], task->tt.Pipeline.tasks_names[i], sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
-            new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
+        for(int i = 0 ; i < task->info.Pipeline.nr_commands ; i++){
+            strncpy(new_task->info.Pipeline.tasks_names[i], task->info.Pipeline.tasks_names[i], sizeof(new_task->info.Pipeline.tasks_names[i]) - 1);
+            new_task->info.Pipeline.tasks_names[i][sizeof(new_task->info.Pipeline.tasks_names[i]) - 1] = '\0';
         }
-        new_task->tt.Pipeline.nr_commands = task->tt.Pipeline.nr_commands;
-        new_task->tt.Pipeline.exec_time = task->tt.Pipeline.exec_time;
+        new_task->info.Pipeline.nr_commands = task->info.Pipeline.nr_commands;
+        new_task->info.Pipeline.exec_time = task->info.Pipeline.exec_time;
 
     }
 
@@ -135,52 +135,52 @@ void finishRequest(Task task){
 Task createSingleTask(Message m){
     Task new_task = malloc(sizeof(struct task));
     new_task->type = 1;
-    new_task->process_pid = m->msg.EStart.process_pid;
-    strncpy(new_task->tt.Single.task_name,m->msg.EStart.task_name,sizeof(new_task->tt.Single.task_name) - 1);
-    new_task->tt.Single.task_name[sizeof(new_task->tt.Single.task_name) - 1] = '\0';
-    new_task->tt.Single.exec_time = m->msg.EStart.start;
+    new_task->process_pid = m->data.EStart.process_pid;
+    strncpy(new_task->info.Single.task_name,m->data.EStart.task_name,sizeof(new_task->info.Single.task_name) - 1);
+    new_task->info.Single.task_name[sizeof(new_task->info.Single.task_name) - 1] = '\0';
+    new_task->info.Single.exec_time = m->data.EStart.start;
     return new_task;
 }
 
 Task createPipelineTask(Message m){
     Task new_task = malloc(sizeof(struct task));
     new_task->type = 2;
-    new_task->process_pid = m->msg.PStart.process_pid;
-    for(int i = 0; i < m->msg.PStart.nr_commands; i++){
-        strncpy(new_task->tt.Pipeline.tasks_names[i],m->msg.PStart.tasks_names[i],sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1);
-        new_task->tt.Pipeline.tasks_names[i][sizeof(new_task->tt.Pipeline.tasks_names[i]) - 1] = '\0';
+    new_task->process_pid = m->data.PStart.process_pid;
+    for(int i = 0; i < m->data.PStart.nr_commands; i++){
+        strncpy(new_task->info.Pipeline.tasks_names[i],m->data.PStart.tasks_names[i],sizeof(new_task->info.Pipeline.tasks_names[i]) - 1);
+        new_task->info.Pipeline.tasks_names[i][sizeof(new_task->info.Pipeline.tasks_names[i]) - 1] = '\0';
     }
-    new_task->tt.Pipeline.nr_commands = m->msg.PStart.nr_commands;
-    new_task->tt.Pipeline.exec_time = m->msg.PStart.start;
+    new_task->info.Pipeline.nr_commands = m->data.PStart.nr_commands;
+    new_task->info.Pipeline.exec_time = m->data.PStart.start;
     return new_task;
 }
 
 void send_exec_time_single(Message m, Task t){
     int response_fd;
-    if((response_fd = open(m->msg.EEnd.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.EEnd.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
 
-    write(response_fd, &t->tt.Single.exec_time, sizeof(long int));
+    write(response_fd, &t->info.Single.exec_time, sizeof(long int));
     close(response_fd);
 }
 
 void send_exec_time_pipeline(Message m, Task t){
     int response_fd;
-    if((response_fd = open(m->msg.PEnd.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.PEnd.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
 
-    write(response_fd, &t->tt.Pipeline.exec_time,sizeof(long int));
+    write(response_fd, &t->info.Pipeline.exec_time,sizeof(long int));
     close(response_fd);
 }
 
 void status_response(Message m){
     // 1. Abrir comunicação com cliente 
     int response_fd;
-    if((response_fd = open(m->msg.StatusRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.StatusRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
@@ -190,22 +190,22 @@ void status_response(Message m){
         // 2 . Constroi resposta
         if(requests[i]->type == 1){
             response->type = 6;
-            response->msg.StatusResponseS.process_pid = requests[i]->process_pid;
-            strncpy(response->msg.StatusResponseS.task_name,requests[i]->tt.Single.task_name, sizeof(response->msg.StatusResponseS.task_name) - 1);
-            response->msg.StatusResponseS.task_name[sizeof(response->msg.StatusResponseS.task_name) - 1] = '\0';
-            response->msg.StatusResponseS.time_elapsed =  m->msg.StatusRequest.clock - requests[i]->tt.Single.exec_time;
+            response->data.StatusResponseS.process_pid = requests[i]->process_pid;
+            strncpy(response->data.StatusResponseS.task_name,requests[i]->info.Single.task_name, sizeof(response->data.StatusResponseS.task_name) - 1);
+            response->data.StatusResponseS.task_name[sizeof(response->data.StatusResponseS.task_name) - 1] = '\0';
+            response->data.StatusResponseS.time_elapsed =  m->data.StatusRequest.clock - requests[i]->info.Single.exec_time;
             // 3. Write da resposta 
             write(response_fd, response, sizeof(struct message));
         }
         else if(requests[i]->type == 2){
             // Resposta para uma task com pipeline
             response->type = 7;
-            response->msg.StatusResponseP.process_pid = requests[i]->process_pid;
-            for(int i = 0; i < requests[i]->tt.Pipeline.nr_commands ; i++){
-                strncpy(response->msg.StatusResponseP.tasks_pipeline[i],requests[i]->tt.Pipeline.tasks_names[i],sizeof(response->msg.StatusResponseP.tasks_pipeline[i]) - 1);
-                response->msg.StatusResponseP.tasks_pipeline[i][sizeof(response->msg.StatusResponseP.tasks_pipeline[i]) - 1] = '\0';
+            response->data.StatusResponseP.process_pid = requests[i]->process_pid;
+            for(int i = 0; i < requests[i]->info.Pipeline.nr_commands ; i++){
+                strncpy(response->data.StatusResponseP.tasks_pipeline[i],requests[i]->info.Pipeline.tasks_names[i],sizeof(response->data.StatusResponseP.tasks_pipeline[i]) - 1);
+                response->data.StatusResponseP.tasks_pipeline[i][sizeof(response->data.StatusResponseP.tasks_pipeline[i]) - 1] = '\0';
             }
-            response->msg.StatusResponseP.time_elapsed = requests[i]->tt.Pipeline.exec_time - m->msg.StatusRequest.clock;
+            response->data.StatusResponseP.time_elapsed = requests[i]->info.Pipeline.exec_time - m->data.StatusRequest.clock;
             // 3. Write da resposta 
             write(response_fd, response, sizeof(struct message));
         }
@@ -217,21 +217,21 @@ void status_response(Message m){
 
 void stats_time_response(Message m){
     int response_fd;
-    if((response_fd = open(m->msg.StatsRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.StatsRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
 
     long int response = 0;
 
-    for(int i = 0; m->msg.StatsRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->msg.StatsRequest.request_pids[i];
+    for(int i = 0; m->data.StatsRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->data.StatsRequest.request_pids[i];
         for(int j = 0, flag = 0; !flag ; j++){
             if(target == done[j]->process_pid){
                 if(done[j]->type == 1)
-                    response += done[j]->tt.Single.exec_time;
+                    response += done[j]->info.Single.exec_time;
                 else if(done[j]->type == 2){
-                    response += done[j]->tt.Pipeline.exec_time;
+                    response += done[j]->info.Pipeline.exec_time;
                 }
                 flag = 1;
             }
@@ -244,22 +244,22 @@ void stats_time_response(Message m){
 
 void stats_command_response(Message m){
     int response_fd;
-    if((response_fd = open(m->msg.StatsCommandRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.StatsCommandRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
 
     int response = 0;
-    char * program = strdup(m->msg.StatsCommandRequest.task_name);
-    for(int i = 0; m->msg.StatsCommandRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->msg.StatsCommandRequest.request_pids[i];
+    char * program = strdup(m->data.StatsCommandRequest.task_name);
+    for(int i = 0; m->data.StatsCommandRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->data.StatsCommandRequest.request_pids[i];
         for(int j = 0,flag = 0; !flag ; j++){
             if(done[j]->process_pid == target){
-                if(done[j]->type == 1 && !strcmp(program, done[j]->tt.Single.task_name))
+                if(done[j]->type == 1 && !strcmp(program, done[j]->info.Single.task_name))
                         response++;
                 else if(done[j]->type == 2){
-                    for(int k = 0; k < done[j]->tt.Pipeline.nr_commands; k++){
-                        char * c = strtok(done[j]->tt.Pipeline.tasks_names[k], " ");
+                    for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
+                        char * c = strtok(done[j]->info.Pipeline.tasks_names[k], " ");
                         if(!strcmp(program, c))
                             response++;
                     }
@@ -276,7 +276,7 @@ void stats_command_response(Message m){
 
 void stats_uniq_response(Message m){
     int response_fd;
-    if((response_fd = open(m->msg.StatsRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->data.StatsRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
@@ -284,12 +284,12 @@ void stats_uniq_response(Message m){
     char * programs[20];
     char * program;
     int size = 0;
-    for(int i = 0; m->msg.StatsRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->msg.StatsRequest.request_pids[i];
+    for(int i = 0; m->data.StatsRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->data.StatsRequest.request_pids[i];
         for(int j = 0, flag = 0; !flag ; j++){
             if(target == done[j]->process_pid){
                 if(done[j]->type == 1){
-                    program = strdup(done[j]->tt.Single.task_name);
+                    program = strdup(done[j]->info.Single.task_name);
                     int needle = 0;
                     for(int k = 0; k < size ; k++){
                         if(!strcmp(program, programs[k])){
@@ -303,8 +303,8 @@ void stats_uniq_response(Message m){
                     }
                 }
                 else if(done[j]->type == 2){
-                    for(int k = 0; k < done[j]->tt.Pipeline.nr_commands; k++){
-                        char * cmd = strdup(done[j]->tt.Pipeline.tasks_names[k]);
+                    for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
+                        char * cmd = strdup(done[j]->info.Pipeline.tasks_names[k]);
                         program = strdup(strtok(cmd, " "));
 
                         int needle = 0;
@@ -346,11 +346,42 @@ void save_single_task(Task t){
     }
     
     write(output_fd,"Program name: ",sizeof(char) * strlen("Program name: "));
-    write(output_fd, t->tt.Single.task_name,sizeof(char) * strlen(t->tt.Single.task_name));
+    write(output_fd, t->info.Single.task_name,sizeof(char) * strlen(t->info.Single.task_name));
+    write(output_fd,"\n",sizeof(char) * strlen("\n"));
+    write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
+    write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
+    char time[16];
+    snprintf(time,sizeof(time),"%ldms", t->info.Single.exec_time); 
+    write(output_fd,time,sizeof(char) * strlen(time));  
+    close(output_fd);
+}
+
+void save_pipeline_task(Task t){
+    char path[50];
+    char task_file[20];
+    strcpy(path, folders_path);
+    sprintf(task_file, "/process_%d.txt",t->process_pid);
+    strcat(path,task_file);
+
+    int output_fd;
+    if((output_fd = open(path,O_WRONLY | O_CREAT | O_TRUNC ,0644)) < 0){
+        perror("Error opening to write data!");
+        _exit(-1);
+    }
+    
+    write(output_fd,"Program name: ",sizeof(char) * strlen("Program name: "));
+    int nr_commands = t->info.Pipeline.nr_commands;
+    for(int i = 0; i < nr_commands-1; i++){
+        char cmd[50];
+        strcpy(cmd,t->info.Pipeline.tasks_names[i]);
+        write(output_fd, cmd,sizeof(char) * strlen(cmd));
+        write(output_fd," | ", sizeof(char) * strlen(" | "));
+    }
+    write(output_fd, t->info.Pipeline.tasks_names[nr_commands - 1],sizeof(char) * strlen(t->info.Pipeline.tasks_names[nr_commands - 1]));
     write(output_fd,"\n",sizeof(char) * strlen("\n"));
     write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
     char time[16];
-    snprintf(time,sizeof(time),"%ldms", t->tt.Single.exec_time); 
+    snprintf(time,sizeof(time),"%ldms", t->info.Pipeline.exec_time); 
     write(output_fd,time,sizeof(char) * strlen(time));  
     close(output_fd);
 }
@@ -364,14 +395,13 @@ void monitoring(){
             if(new_message->type == 1){
                 Task t = createSingleTask(new_message);
                 addRequest(t);
-                printRequests();
             }
             else if(new_message->type == 2){
                 pid_t pid;
 
-                Task t = findRequest(new_message->msg.EEnd.process_pid);
-                long int initial_time = t->tt.Single.exec_time;
-                t->tt.Single.exec_time = new_message->msg.EEnd.end - initial_time;
+                Task t = findRequest(new_message->data.EEnd.process_pid);
+                long int initial_time = t->info.Single.exec_time;
+                t->info.Single.exec_time = new_message->data.EEnd.end - initial_time;
                 finishRequest(t);
 
                 if((pid = fork()) < 0){
@@ -388,14 +418,13 @@ void monitoring(){
             else if(new_message->type == 3){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
-                printRequests();
             }
             else if(new_message->type == 4){
                 pid_t pid;
 
-                Task t = findRequest(new_message->msg.PEnd.process_pid);
-                long int initial_time = t->tt.Pipeline.exec_time;
-                t->tt.Pipeline.exec_time = new_message->msg.PEnd.exec_time - initial_time;
+                Task t = findRequest(new_message->data.PEnd.process_pid);
+                long int initial_time = t->info.Pipeline.exec_time;
+                t->info.Pipeline.exec_time = new_message->data.PEnd.exec_time - initial_time;
                 finishRequest(t);
 
                 if((pid = fork()) < 0){
@@ -405,6 +434,7 @@ void monitoring(){
                 else if (!pid){
                     send_exec_time_pipeline(new_message, t);
                     printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
+                    save_pipeline_task(t);
                     _exit(0);
                 } else addPid(pid);
             }

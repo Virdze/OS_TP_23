@@ -60,7 +60,7 @@ typedef struct message {
             pid_t request_pids[100];
         } StatsCommandRequest;
 
-    } msg;
+    } data;
 } * Message;
 
 #endif

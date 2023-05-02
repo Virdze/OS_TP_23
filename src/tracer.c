@@ -65,21 +65,21 @@ void printUsage(){
 
 void print_status_response_single(Message m){
     printf("================================\n");
-    printf("PID: %d\n", m->msg.StatusResponseS.process_pid);
-    printf("Task: %s\n", m->msg.StatusResponseS.task_name);
-    printf("Time Elapsed: %ldms\n", m->msg.StatusResponseS.time_elapsed);
+    printf("PID: %d\n", m->data.StatusResponseS.process_pid);
+    printf("Task: %s\n", m->data.StatusResponseS.task_name);
+    printf("Time Elapsed: %ldms\n", m->data.StatusResponseS.time_elapsed);
     printf("================================\n");
 }
 
 void print_status_response_pipeline(Message m){
     printf("================================\n");
-    printf("PID: %d\n", m->msg.StatusResponseP.process_pid);
+    printf("PID: %d\n", m->data.StatusResponseP.process_pid);
     printf("Tasks:\n");
-    for(int i = 0; i < (m->msg.StatusResponseP.nr_comandos) - 1;i++){
-        printf("%s |", m->msg.StatusResponseP.tasks_pipeline[i]);
+    for(int i = 0; i < (m->data.StatusResponseP.nr_comandos) - 1;i++){
+        printf("%s |", m->data.StatusResponseP.tasks_pipeline[i]);
     }
-    printf("%s \n", m->msg.StatusResponseP.tasks_pipeline[(m->msg.StatusResponseP.nr_comandos) - 1]);
-    printf("Time Elapsed: %ldms\n", m->msg.StatusResponseS.time_elapsed);
+    printf("%s \n", m->data.StatusResponseP.tasks_pipeline[(m->data.StatusResponseP.nr_comandos) - 1]);
+    printf("Time Elapsed: %ldms\n", m->data.StatusResponseS.time_elapsed);
     printf("================================\n");
 }
 
@@ -99,10 +99,6 @@ void printStatusCommandResponse(char * task_name, int response){
 // =====================================================================================
 
 
-//  =================================== ** Messages ** ===================================
-
-
-// =====================================================================================
 void executeSingle(char ** command){
     pid_t pid;
     int status;
@@ -251,10 +247,10 @@ int main(int argc, char * argv[]){
             
             Message start_message = malloc(sizeof(struct message));
             start_message->type = 1;
-            start_message->msg.EStart.start = get_time_of_day();
-            start_message->msg.EStart.process_pid = pid;
-            strncpy(start_message->msg.EStart.task_name,command[0],sizeof(start_message->msg.EStart.task_name) - 1);
-            start_message->msg.EStart.task_name[sizeof(start_message->msg.EStart.task_name) - 1] = '\0';
+            start_message->data.EStart.start = get_time_of_day();
+            start_message->data.EStart.process_pid = pid;
+            strncpy(start_message->data.EStart.task_name,command[0],sizeof(start_message->data.EStart.task_name) - 1);
+            start_message->data.EStart.task_name[sizeof(start_message->data.EStart.task_name) - 1] = '\0';
 
             // 3. Enviar informação para o monitor
             write(main_channel_fd, start_message, sizeof(struct message));
@@ -267,12 +263,12 @@ int main(int argc, char * argv[]){
             // 6. Criar Mensagem de fim de Execução
             Message end_message = malloc(sizeof(struct message));
             end_message->type = 2;
-            end_message->msg.EEnd.end = get_time_of_day();
-            end_message->msg.EEnd.process_pid = pid;
+            end_message->data.EEnd.end = get_time_of_day();
+            end_message->data.EEnd.process_pid = pid;
             char path[50];
             sprintf(path,"../tmp/process_%d", pid);
-            strncpy(end_message->msg.EEnd.response_path,path,sizeof(end_message->msg.EEnd.response_path) - 1);
-            end_message->msg.EEnd.response_path[sizeof(end_message->msg.EEnd.response_path) - 1] = '\0';
+            strncpy(end_message->data.EEnd.response_path,path,sizeof(end_message->data.EEnd.response_path) - 1);
+            end_message->data.EEnd.response_path[sizeof(end_message->data.EEnd.response_path) - 1] = '\0';
             // 7. Criar fifo para receber resposta 
 
             int response_fifo;
@@ -326,15 +322,15 @@ int main(int argc, char * argv[]){
 
             Message start_message = malloc(sizeof(struct message));
             start_message->type = 3;
-            start_message->msg.PStart.process_pid = pid;
+            start_message->data.PStart.process_pid = pid;
             
             for(int i = 0; i < nr_commands; i++){
-                strncpy(start_message->msg.PStart.tasks_names[i], tasks[i], sizeof(start_message->msg.PStart.tasks_names[i]) - 1);
-                start_message->msg.PStart.tasks_names[i][sizeof(start_message->msg.PStart.tasks_names[i]) - 1] = '\0';
+                strncpy(start_message->data.PStart.tasks_names[i], tasks[i], sizeof(start_message->data.PStart.tasks_names[i]) - 1);
+                start_message->data.PStart.tasks_names[i][sizeof(start_message->data.PStart.tasks_names[i]) - 1] = '\0';
             }
             
-            start_message->msg.PStart.nr_commands = nr_commands;
-            start_message->msg.PStart.start = get_time_of_day();
+            start_message->data.PStart.nr_commands = nr_commands;
+            start_message->data.PStart.start = get_time_of_day();
             
             write(main_channel_fd, start_message, sizeof(struct message));
             printf("Running PID %d\n", pid);
@@ -343,12 +339,12 @@ int main(int argc, char * argv[]){
 
             Message end_message = malloc(sizeof(struct message));
             end_message->type = 4;
-            end_message->msg.PEnd.process_pid = pid;
-            end_message->msg.PEnd.exec_time = get_time_of_day();
+            end_message->data.PEnd.process_pid = pid;
+            end_message->data.PEnd.exec_time = get_time_of_day();
             char path[50];
             sprintf(path,"../tmp/process_%d", pid);
-            strncpy(end_message->msg.PEnd.response_path,path,sizeof(end_message->msg.PEnd.response_path) - 1);
-            end_message->msg.PEnd.response_path[sizeof(end_message->msg.PEnd.response_path) - 1] = '\0';
+            strncpy(end_message->data.PEnd.response_path,path,sizeof(end_message->data.PEnd.response_path) - 1);
+            end_message->data.PEnd.response_path[sizeof(end_message->data.PEnd.response_path) - 1] = '\0';
             
 
             int response_fifo;
@@ -388,12 +384,12 @@ int main(int argc, char * argv[]){
         // 2. Criar request
         Message request = malloc(sizeof(struct message));
         request->type = 5;
-        request->msg.StatusRequest.clock = get_time_of_day();
+        request->data.StatusRequest.clock = get_time_of_day();
         // 2.1 - Criar request path
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatusRequest.response_path,path,sizeof(request->msg.StatusRequest.response_path) - 1);
-        request->msg.StatusRequest.response_path[sizeof(request->msg.StatusRequest.response_path) - 1] = '\0';
+        strncpy(request->data.StatusRequest.response_path,path,sizeof(request->data.StatusRequest.response_path) - 1);
+        request->data.StatusRequest.response_path[sizeof(request->data.StatusRequest.response_path) - 1] = '\0';
         
         // 4. Criar fifo
         int response_fifo;
@@ -435,12 +431,12 @@ int main(int argc, char * argv[]){
         request->type=8;
 
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
-            request->msg.StatsRequest.request_pids[j] = atoi(argv[i]);
+            request->data.StatsRequest.request_pids[j] = atoi(argv[i]);
         }
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatsRequest.response_path,path,sizeof(request->msg.StatsRequest.response_path) - 1);
-        request->msg.StatsRequest.response_path[sizeof(request->msg.StatsRequest.response_path) - 1] = '\0';
+        strncpy(request->data.StatsRequest.response_path,path,sizeof(request->data.StatsRequest.response_path) - 1);
+        request->data.StatsRequest.response_path[sizeof(request->data.StatsRequest.response_path) - 1] = '\0';
         
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -472,15 +468,15 @@ int main(int argc, char * argv[]){
 
         Message request = malloc(sizeof(struct message));
         request->type = 9;
-        strncpy(request->msg.StatsCommandRequest.task_name, argv[2], sizeof(request->msg.StatsCommandRequest.task_name) - 1);
-        request->msg.StatsCommandRequest.task_name[sizeof(request->msg.StatsCommandRequest.task_name) - 1] = '\0';
+        strncpy(request->data.StatsCommandRequest.task_name, argv[2], sizeof(request->data.StatsCommandRequest.task_name) - 1);
+        request->data.StatsCommandRequest.task_name[sizeof(request->data.StatsCommandRequest.task_name) - 1] = '\0';
         for(int i = 3, j = 0; i < argc && i < 100;i++, j++){
-            request->msg.StatsCommandRequest.request_pids[j] = atoi(argv[i]);
+            request->data.StatsCommandRequest.request_pids[j] = atoi(argv[i]);
         }
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatsCommandRequest.response_path,path,sizeof(request->msg.StatsCommandRequest.response_path) - 1);
-        request->msg.StatsCommandRequest.response_path[sizeof(request->msg.StatsCommandRequest.response_path) - 1] = '\0';
+        strncpy(request->data.StatsCommandRequest.response_path,path,sizeof(request->data.StatsCommandRequest.response_path) - 1);
+        request->data.StatsCommandRequest.response_path[sizeof(request->data.StatsCommandRequest.response_path) - 1] = '\0';
         
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -513,12 +509,12 @@ int main(int argc, char * argv[]){
         request->type = 10;
 
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
-            request->msg.StatsRequest.request_pids[j] = atoi(argv[i]);
+            request->data.StatsRequest.request_pids[j] = atoi(argv[i]);
         }
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatsRequest.response_path,path,sizeof(request->msg.StatsRequest.response_path) - 1);
-        request->msg.StatsRequest.response_path[sizeof(request->msg.StatsRequest.response_path) - 1] = '\0';
+        strncpy(request->data.StatsRequest.response_path,path,sizeof(request->data.StatsRequest.response_path) - 1);
+        request->data.StatsRequest.response_path[sizeof(request->data.StatsRequest.response_path) - 1] = '\0';
         
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -544,9 +540,6 @@ int main(int argc, char * argv[]){
         close(main_channel_fd);
         close(response_fd);
         unlink(path);
-
-
-
     }
     else if(!strcmp(argv[1],"END")){
         //End monitor (Temporario)
