@@ -217,15 +217,15 @@ void status_response(Message m){
 
 void stats_time_response(Message m){
     int response_fd;
-    if((response_fd = open(m->msg.StatsTimeRequest.response_path, O_WRONLY)) < 0){
+    if((response_fd = open(m->msg.StatsRequest.response_path, O_WRONLY)) < 0){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
 
     long int response = 0;
 
-    for(int i = 0; m->msg.StatsTimeRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->msg.StatsTimeRequest.request_pids[i];
+    for(int i = 0; m->msg.StatsRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->msg.StatsRequest.request_pids[i];
         for(int j = 0, flag = 0; !flag ; j++){
             if(target == done[j]->process_pid){
                 if(done[j]->type == 1)
@@ -269,6 +269,66 @@ void stats_command_response(Message m){
         }
     }
     write(response_fd, &response, sizeof(int));
+    close(response_fd);
+}
+
+
+
+void stats_uniq_response(Message m){
+    int response_fd;
+    if((response_fd = open(m->msg.StatsRequest.response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+
+    char * programs[20];
+    char * program;
+    int size = 0;
+    for(int i = 0; m->msg.StatsRequest.request_pids[i] != '\0' ; i++){
+        pid_t target = m->msg.StatsRequest.request_pids[i];
+        for(int j = 0, flag = 0; !flag ; j++){
+            if(target == done[j]->process_pid){
+                if(done[j]->type == 1){
+                    program = strdup(done[j]->tt.Single.task_name);
+                    int needle = 0;
+                    for(int k = 0; k < size ; k++){
+                        if(!strcmp(program, programs[k])){
+                            needle = 1;
+                            break;
+                        }
+                    }
+                    if(!needle){
+                        strcpy(programs[size], program);
+                        size++;
+                    }
+                }
+                else if(done[j]->type == 2){
+                    for(int k = 0; k < done[j]->tt.Pipeline.nr_commands; k++){
+                        char * cmd = strdup(done[j]->tt.Pipeline.tasks_names[k]);
+                        program = strdup(strtok(cmd, " "));
+
+                        int needle = 0;
+                        for(int x = 0; x < size ; x++){
+                            if(!strcmp(program, programs[x])){
+                                needle = 1;
+                                break;
+                            }
+                        }
+                        if(!needle){
+                            strcpy(programs[size], program);
+                            size++;
+                        }
+                    }
+                }
+                flag = 1;
+            }
+        }
+    }
+
+    for (int i = 0; i < size ; i++){
+        write(response_fd, programs[i], sizeof(char) * 20);
+    }
+
     close(response_fd);
 }
 
@@ -382,6 +442,19 @@ void monitoring(){
                 }
                 else if(!pid){
                     stats_command_response(new_message);
+                    printf("%d sended message to the user waiting!\n", getpid());
+                    _exit(0);
+                }
+                else addPid(pid);
+            }
+            else if(new_message->type == 10){
+                pid_t pid;
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!");
+                    _exit(-1);
+                }
+                else if(!pid){
+                    stats_uniq_response(new_message);
                     printf("%d sended message to the user waiting!\n", getpid());
                     _exit(0);
                 }

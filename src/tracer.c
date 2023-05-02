@@ -95,6 +95,7 @@ void printStatusCommandResponse(char * task_name, int response){
     printf("================================\n");
 }
 
+
 // =====================================================================================
 
 
@@ -434,12 +435,12 @@ int main(int argc, char * argv[]){
         request->type=8;
 
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
-            request->msg.StatsTimeRequest.request_pids[j] = atoi(argv[i]);
+            request->msg.StatsRequest.request_pids[j] = atoi(argv[i]);
         }
         char path[50];
         sprintf(path,"../tmp/process_%d", pid);
-        strncpy(request->msg.StatsTimeRequest.response_path,path,sizeof(request->msg.StatsTimeRequest.response_path) - 1);
-        request->msg.StatsTimeRequest.response_path[sizeof(request->msg.StatsTimeRequest.response_path) - 1] = '\0';
+        strncpy(request->msg.StatsRequest.response_path,path,sizeof(request->msg.StatsRequest.response_path) - 1);
+        request->msg.StatsRequest.response_path[sizeof(request->msg.StatsRequest.response_path) - 1] = '\0';
         
         int response_fifo;
         if((response_fifo = mkfifo(path, 0666)) < 0){
@@ -505,6 +506,47 @@ int main(int argc, char * argv[]){
         close(main_channel_fd);
         close(response_fd);
         unlink(path);
+    }
+    else if(!strcmp(argv[1], "stats-uniq")){
+        pid_t pid = getpid();
+        Message request = malloc(sizeof(struct message));
+        request->type = 10;
+
+        for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
+            request->msg.StatsRequest.request_pids[j] = atoi(argv[i]);
+        }
+        char path[50];
+        sprintf(path,"../tmp/process_%d", pid);
+        strncpy(request->msg.StatsRequest.response_path,path,sizeof(request->msg.StatsRequest.response_path) - 1);
+        request->msg.StatsRequest.response_path[sizeof(request->msg.StatsRequest.response_path) - 1] = '\0';
+        
+        int response_fifo;
+        if((response_fifo = mkfifo(path, 0666)) < 0){
+            perror("Error creating response pipe.\n");
+            _exit(-1);
+        }
+
+        write(main_channel_fd, request, sizeof(struct message));
+
+
+        int response_fd;
+        if((response_fd = open(path, O_RDONLY)) < 0){
+            perror("Error opening fifo!\n");
+            _exit(-1);
+        }
+        
+        ssize_t bytes_read;
+        char response[20];
+        while((bytes_read = read(response_fd, response, sizeof(char) * 20)) > 0){
+            printf("%s\n", response);
+        }
+
+        close(main_channel_fd);
+        close(response_fd);
+        unlink(path);
+
+
+
     }
     else if(!strcmp(argv[1],"END")){
         //End monitor (Temporario)

@@ -48,16 +48,18 @@ typedef struct message {
             long int time_elapsed;
         } StatusResponseP;
 
-        struct stats_time_request { // 8. Tracer -> Monitor (stats time)
-            char response_path[50];
+        struct stats_request { // 8. Tracer -> Monitor (stats time) 
+                               // 10- Tracer -> Monitor (stats uniq)
+            char response_path[50]; 
             pid_t request_pids[100];
-        } StatsTimeRequest;
+        } StatsRequest;
 
         struct stats_command_request { // 9. Tracer -> Monitor (stats command)
             char response_path[50];
             char task_name[50];
             pid_t request_pids[100];
         } StatsCommandRequest;
+
     } msg;
 } * Message;
 
