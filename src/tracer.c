@@ -97,7 +97,7 @@ void printStatusCommandResponse(char * task_name, int response){
 
 
 // =====================================================================================
-
+// =================================== Execute =========================================
 
 void executeSingle(char ** command){
     pid_t pid;
@@ -210,6 +210,8 @@ void executePipeline(char ** commands, int nr_commands){
     }    
 }
 
+// =====================================================================================
+
 int initMainChannel(){
     //  Abrir comunicação do lado do tracer 
     if ((main_channel_fd = open(MAIN_FIFO,O_WRONLY)) < 0){
@@ -234,14 +236,7 @@ int main(int argc, char * argv[]){
 
             pid_t pid = getpid();
             char * command[50];
-            char * token = strtok(argv[3]," ");
-            int i = 0;
-            while(token != NULL){
-                command[i++] = token;
-                token = strtok(NULL," ");
-            }
-
-            command[i] = NULL;   
+            parseCommand(argv[3], command); 
     
             // 2. Criar Mensagem de início de execução
             

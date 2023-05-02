@@ -24,10 +24,8 @@ char * folders_path;
 pid_t * pids;
 
 
-// =====================================================================================
-
-
-//  =================================== ** PRINTS ** ===================================
+// ======================================================================================
+// =================================== ** PRINTS ** =====================================
 
 void printSingleTask(Task t){
     printf("%d\n%s\n%ldms\n",t->process_pid,t->info.Single.task_name, t->info.Single.exec_time);
@@ -64,8 +62,8 @@ void printUsage(){
     printf("1: ./monitor PIDS-folder\n");
 }
 
-
 // =====================================================================================
+// ====================================== AUX ==========================================
 
 void addPid(pid_t pid){
     pids_count++;
@@ -131,6 +129,8 @@ void finishRequest(Task task){
         done[done_count-1] = task;
     }
 }
+// ======================================================================================
+// ================================== Create Tasks ======================================
 
 Task createSingleTask(Message m){
     Task new_task = malloc(sizeof(struct task));
@@ -155,6 +155,9 @@ Task createPipelineTask(Message m){
     return new_task;
 }
 
+// ======================================================================================
+// ================================= Execute Responses ==================================
+
 void send_exec_time_single(Message m, Task t){
     int response_fd;
     if((response_fd = open(m->data.EEnd.response_path, O_WRONLY)) < 0){
@@ -176,6 +179,8 @@ void send_exec_time_pipeline(Message m, Task t){
     write(response_fd, &t->info.Pipeline.exec_time,sizeof(long int));
     close(response_fd);
 }
+// ======================================================================================
+// =================================== Status Response ==================================
 
 void status_response(Message m){
     // 1. Abrir comunicação com cliente 
@@ -214,6 +219,10 @@ void status_response(Message m){
     // 4. Fechar Pipe
     close(response_fd);
 }
+
+// ======================================================================================
+// ================================== Stats Responses ===================================
+
 
 void stats_time_response(Message m){
     int response_fd;
@@ -291,13 +300,15 @@ void stats_uniq_response(Message m){
                 if(done[j]->type == 1){
                     program = strdup(done[j]->info.Single.task_name);
                     int needle = 0;
-                    for(int k = 0; k < size ; k++){
+                    for(int k = 0; k < size; k++){
                         if(!strcmp(program, programs[k])){
                             needle = 1;
                             break;
                         }
                     }
                     if(!needle){
+                        programs[size] = malloc(sizeof(char) * 20);
+                        memset(programs[size], 0, sizeof(char) * 20);
                         strcpy(programs[size], program);
                         size++;
                     }
@@ -331,6 +342,9 @@ void stats_uniq_response(Message m){
 
     close(response_fd);
 }
+
+// ======================================================================================
+// ================================== Save To File ======================================
 
 void save_single_task(Task t){
     char path[50];
@@ -385,6 +399,8 @@ void save_pipeline_task(Task t){
     write(output_fd,time,sizeof(char) * strlen(time));  
     close(output_fd);
 }
+// ======================================================================================
+
 
 void monitoring(){
     ssize_t bytes_read;
