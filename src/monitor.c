@@ -411,14 +411,19 @@ void monitoring(){
             if(new_message->type == 1){
                 Task t = createSingleTask(new_message);
                 addRequest(t);
+                printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
             }
             else if(new_message->type == 2){
                 pid_t pid;
 
                 Task t = findRequest(new_message->data.EEnd.process_pid);
+
                 long int initial_time = t->info.Single.exec_time;
                 t->info.Single.exec_time = new_message->data.EEnd.end - initial_time;
+
                 finishRequest(t);
+
+                printf("[EXECUTE]($): Ended request nrº:(%d)\n",t->process_pid);
 
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
@@ -426,7 +431,7 @@ void monitoring(){
                 }
                 else if (!pid){
                     send_exec_time_single(new_message, t);
-                    printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
+                    printf("[EXECUTE]($): Sent execution time to request nrº (%d)!\n", t->process_pid);
                     save_single_task(t);
                     _exit(0);
                 } else addPid(pid);
@@ -434,22 +439,27 @@ void monitoring(){
             else if(new_message->type == 3){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
+                printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
             }
             else if(new_message->type == 4){
                 pid_t pid;
 
                 Task t = findRequest(new_message->data.PEnd.process_pid);
+
                 long int initial_time = t->info.Pipeline.exec_time;
                 t->info.Pipeline.exec_time = new_message->data.PEnd.exec_time - initial_time;
+
                 finishRequest(t);
 
+                printf("[EXECUTE]($): Ended request nrº (%d)\n",t->process_pid);
+            
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
                     _exit(-1);
                 }
                 else if (!pid){
                     send_exec_time_pipeline(new_message, t);
-                    printf("(%d):$ Child nrº (%d): Message sent to request nrº (%d)!\n",getppid(), getpid(), t->process_pid);
+                    printf("[EXECUTE]($): Sent execution time to request nrº (%d)!\n", t->process_pid);
                     save_pipeline_task(t);
                     _exit(0);
                 } else addPid(pid);
@@ -462,7 +472,7 @@ void monitoring(){
                 }
                 else if(!pid){
                     status_response(new_message);
-                    printf("%d sended message to the user waiting!\n", getpid());
+                    printf("[STATUS]($): Sent message to the user waiting!\n");
                     _exit(0);
                 } else addPid(pid);
         
@@ -475,7 +485,7 @@ void monitoring(){
                 }
                 else if(!pid){
                     stats_time_response(new_message);
-                    printf("%d sended message to the user waiting!\n", getpid());
+                    printf("[STATS_TIME]($): Sent message to the user waiting!\n");
                     _exit(0);
                 }
                 else addPid(pid);
@@ -488,7 +498,7 @@ void monitoring(){
                 }
                 else if(!pid){
                     stats_command_response(new_message);
-                    printf("%d sended message to the user waiting!\n", getpid());
+                    printf("[STATS_COMMAND]($): Sent message to the user waiting!\n");
                     _exit(0);
                 }
                 else addPid(pid);
@@ -501,7 +511,7 @@ void monitoring(){
                 }
                 else if(!pid){
                     stats_uniq_response(new_message);
-                    printf("%d sended message to the user waiting!\n", getpid());
+                    printf("[STATS_UNIQ]($): Sent message to the user waiting!\n");
                     _exit(0);
                 }
                 else addPid(pid);
