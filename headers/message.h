@@ -30,7 +30,8 @@ typedef struct message {
             long int exec_time;
         } PEnd;
 
-        struct status_request { // 5 - Tracer -> Monitor (Status request)
+        struct status_request { // 5 - Tracer -> Monitor (status request)
+                                // 11 - Tracer -> Monitor (status-all request)
             char response_path[50];
             long int clock;
         } StatusRequest;

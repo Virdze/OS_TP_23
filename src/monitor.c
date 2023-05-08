@@ -180,7 +180,7 @@ void send_exec_time_pipeline(Message m, Task t){
     close(response_fd);
 }
 // ======================================================================================
-// =================================== Status Response ==================================
+// =================================== Status Responses ==================================
 
 void status_response(Message m){
     // 1. Abrir comunicação com cliente 
@@ -206,17 +206,76 @@ void status_response(Message m){
             // Resposta para uma task com pipeline
             response->type = 7;
             response->data.StatusResponseP.process_pid = requests[i]->process_pid;
-            for(int i = 0; i < requests[i]->info.Pipeline.nr_commands ; i++){
-                strncpy(response->data.StatusResponseP.tasks_pipeline[i],requests[i]->info.Pipeline.tasks_names[i],sizeof(response->data.StatusResponseP.tasks_pipeline[i]) - 1);
-                response->data.StatusResponseP.tasks_pipeline[i][sizeof(response->data.StatusResponseP.tasks_pipeline[i]) - 1] = '\0';
+            for(int j = 0; j < requests[i]->info.Pipeline.nr_commands ; j++){
+                strncpy(response->data.StatusResponseP.tasks_pipeline[j],requests[i]->info.Pipeline.tasks_names[j],sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1);
+                response->data.StatusResponseP.tasks_pipeline[j][sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1] = '\0';
             }
-            response->data.StatusResponseP.time_elapsed = requests[i]->info.Pipeline.exec_time - m->data.StatusRequest.clock;
+            response->data.StatusResponseP.nr_comandos = requests[i]->info.Pipeline.nr_commands;
+            response->data.StatusResponseP.time_elapsed = m->data.StatusRequest.clock - requests[i]->info.Pipeline.exec_time;
             // 3. Write da resposta 
             write(response_fd, response, sizeof(struct message));
         }
     }
 
     // 4. Fechar Pipe
+    close(response_fd);
+}
+
+void status_all_response(Message m){
+    int response_fd;
+    if((response_fd = open(m->data.StatusRequest.response_path, O_WRONLY)) < 0){
+        perror("Error opening fifo!\n");
+        _exit(-1);
+    }
+    Message response = malloc(sizeof(struct message));
+    for(int i = 0; i < requests_count; i++){
+        if(requests[i]->type == 1){
+            response->type = 12;
+            response->data.StatusResponseS.process_pid = requests[i]->process_pid;
+            strncpy(response->data.StatusResponseS.task_name,requests[i]->info.Single.task_name, sizeof(response->data.StatusResponseS.task_name) - 1);
+            response->data.StatusResponseS.task_name[sizeof(response->data.StatusResponseS.task_name) - 1] = '\0';
+            response->data.StatusResponseS.time_elapsed =  m->data.StatusRequest.clock - requests[i]->info.Single.exec_time;
+            write(response_fd, response, sizeof(struct message));
+        }
+        else if(requests[i]->type == 2){
+            response->type = 13;
+            response->data.StatusResponseP.process_pid = requests[i]->process_pid;
+            for(int j = 0; j < requests[i]->info.Pipeline.nr_commands ; j++){
+                strncpy(response->data.StatusResponseP.tasks_pipeline[j],requests[i]->info.Pipeline.tasks_names[j],sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1);
+                response->data.StatusResponseP.tasks_pipeline[j][sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1] = '\0';
+            }
+            response->data.StatusResponseP.time_elapsed = m->data.StatusRequest.clock - requests[i]->info.Pipeline.exec_time;
+            response->data.StatusResponseP.nr_comandos = requests[i]->info.Pipeline.nr_commands;
+            write(response_fd, response, sizeof(struct message));
+        }
+        free(response);
+        response = malloc(sizeof(struct message));
+    }
+
+    for(int i = 0; i < done_count; i++){
+        if(done[i]->type == 1){
+            response->type = 14;
+            response->data.StatusResponseS.process_pid = done[i]->process_pid;
+            strncpy(response->data.StatusResponseS.task_name,done[i]->info.Single.task_name, sizeof(response->data.StatusResponseS.task_name) - 1);
+            response->data.StatusResponseS.task_name[sizeof(response->data.StatusResponseS.task_name) - 1] = '\0';
+            response->data.StatusResponseS.time_elapsed = done[i]->info.Single.exec_time;
+            write(response_fd, response, sizeof(struct message));
+        }
+        else if(done[i]->type == 2){
+            response->type = 15;
+            response->data.StatusResponseP.process_pid = done[i]->process_pid;
+            for(int j = 0; j < done[i]->info.Pipeline.nr_commands ; j++){
+                strncpy(response->data.StatusResponseP.tasks_pipeline[j],done[i]->info.Pipeline.tasks_names[j],sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1);
+                response->data.StatusResponseP.tasks_pipeline[j][sizeof(response->data.StatusResponseP.tasks_pipeline[j]) - 1] = '\0';
+            }
+            response->data.StatusResponseP.time_elapsed = done[i]->info.Pipeline.exec_time;
+            response->data.StatusResponseP.nr_comandos = done[i]->info.Pipeline.nr_commands;
+            write(response_fd, response, sizeof(struct message));
+        }
+        free(response);
+        response = malloc(sizeof(struct message));
+    }
+
     close(response_fd);
 }
 
@@ -401,7 +460,6 @@ void save_pipeline_task(Task t){
 }
 // ======================================================================================
 
-
 void monitoring(){
     ssize_t bytes_read;
     Message new_message = malloc(sizeof(struct message));
@@ -440,6 +498,7 @@ void monitoring(){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
                 printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
+                printRequests(t);
             }
             else if(new_message->type == 4){
                 pid_t pid;
@@ -516,6 +575,19 @@ void monitoring(){
                 }
                 else addPid(pid);
             }
+            else if(new_message->type == 11){
+                pid_t pid;
+                if((pid = fork()) < 0){
+                    perror("Error using fork()!");
+                    _exit(-1);
+                }
+                else if(!pid){
+                    status_all_response(new_message);
+                    printf("[STATUS_ALL]($): Sent message to the user waiting!\n");
+                    _exit(0);
+                }
+                else addPid(pid);
+            }
             else if(new_message->type == -1){
                 flag = 1;
                 break;
@@ -563,4 +635,4 @@ int main(int argc, char * argv[]){
     close(main_channel_fd);
     unlink(MAIN_FIFO);
     return 0;
-} 
+}

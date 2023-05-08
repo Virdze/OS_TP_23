@@ -23,7 +23,7 @@ int main_channel_fd;
 long int get_time_of_day(){
     struct timeval t;
     gettimeofday(&t,NULL);
-    long int time = t.tv_sec * 1000 + t.tv_usec;
+    long int time = (t.tv_sec * 1000) + (t.tv_usec / 1000);
     return time;
 }
 
@@ -58,9 +58,43 @@ void printUsage(){
     printf("1: ./tracer execute -u prog-a arg-1 (...) arg-n\n");
     printf("2: ./tracer execute -p prog-a arg-1 (...) arg-n | prog-b arg-1 (...) arg-n | prog-c arg-1 (...) arg-n\n");
     printf("3: ./tracer status\n");
-    printf("4: ./tracer stats-time PID-1 PID-2 (...) PID-N\n");
-    printf("5: ./tracer stats-command prog-a PID-1 PID-2 (...) PID-N\n");
-    printf("6: ./tracer stats-uniq PID-1 PID-2 (...) PID-N\n");
+    printf("4: ./tracer status-all\n");
+    printf("5: ./tracer stats-time PID-1 PID-2 (...) PID-N\n");
+    printf("6: ./tracer stats-command prog-a PID-1 PID-2 (...) PID-N\n");
+    printf("7: ./tracer stats-uniq PID-1 PID-2 (...) PID-N\n");
+}
+
+
+void print_status_all_response_single(Message m){
+    printf("%d %s %ldms\n", m->data.StatusResponseS.process_pid,m->data.StatusResponseS.task_name, m->data.StatusResponseS.time_elapsed);
+}
+
+void print_status_all_response_pipeline(Message m){
+    printf("%d ", m->data.StatusResponseP.process_pid);
+    for(int i = 0; i < (m->data.StatusResponseP.nr_comandos) - 1;i++){
+        printf("%s | ", m->data.StatusResponseP.tasks_pipeline[i]);
+    }
+    printf("%s ", m->data.StatusResponseP.tasks_pipeline[(m->data.StatusResponseP.nr_comandos) - 1]);
+    printf("%ldms\n", m->data.StatusResponseP.time_elapsed);
+}
+
+void print_status_all_response(Message * requests, Message * done, int requests_count, int done_count){
+    printf("Executing:\n");
+    printf("   PID   |     Task     |   Exec Time   |\n");
+    for(int i = 0; i < requests_count ; i++){
+        if(requests[i]->type == 12)
+            print_status_all_response_single(requests[i]);
+        else if (requests[i]->type == 13)
+            print_status_all_response_pipeline(requests[i]);
+    }
+    printf("\nFinished:\n");
+    printf("   PID   |     Task     |   Exec Time   |\n");
+    for(int i = 0; i < done_count ; i++){
+        if(done[i]->type == 14)
+            print_status_all_response_single(done[i]);
+        else if (requests[i]->type == 15)
+            print_status_all_response_pipeline(done[i]);
+    }
 }
 
 void print_status_response_single(Message m){
@@ -79,7 +113,7 @@ void print_status_response_pipeline(Message m){
         printf("%s |", m->data.StatusResponseP.tasks_pipeline[i]);
     }
     printf("%s \n", m->data.StatusResponseP.tasks_pipeline[(m->data.StatusResponseP.nr_comandos) - 1]);
-    printf("Time Elapsed: %ldms\n", m->data.StatusResponseS.time_elapsed);
+    printf("Time Elapsed: %ldms\n", m->data.StatusResponseP.time_elapsed);
     printf("================================\n");
 }
 
@@ -416,6 +450,57 @@ int main(int argc, char * argv[]){
 
         // 8. Fechar descritores e destruir o fifo criado
         
+        close(main_channel_fd);
+        close(response_fd);
+        unlink(path);
+    }
+    else if(!strcmp(argv[1],"status-all")){
+        pid_t pid = getpid();
+
+        Message request = malloc(sizeof(struct message));
+        request->type = 11;
+        request->data.StatusRequest.clock = get_time_of_day();
+        char path[50];
+        sprintf(path,"../tmp/process_%d", pid);
+        strncpy(request->data.StatusRequest.response_path,path,sizeof(request->data.StatusRequest.response_path) - 1);
+        request->data.StatusRequest.response_path[sizeof(request->data.StatusRequest.response_path) - 1] = '\0';
+
+        int response_fifo;
+        if((response_fifo = mkfifo(path, 0666)) < 0){
+            perror("Error creating response pipe.\n");
+            _exit(-1);
+        }
+
+        write(main_channel_fd,request,sizeof(struct message));
+
+        int response_fd;
+        if((response_fd = open(path, O_RDONLY)) < 0){
+            perror("Error opening fifo!\n");
+            _exit(-1);
+        }
+        
+        ssize_t bytes_read;
+        int requests_count = 0,
+            done_count = 0;
+        Message * requests = NULL;
+        Message * done = NULL;
+        Message response = malloc(sizeof(struct message));
+        while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
+            if(response->type == 12 || response->type == 13){
+                requests = realloc(requests, (requests_count + 1) * sizeof(struct message));
+                requests[requests_count] = response;
+                requests_count++;
+            }else if(response->type == 14 || response->type == 15) {
+                done = realloc(done, (done_count + 1) * sizeof(struct message));
+                done[done_count] = response;
+                done_count++;
+            }
+            free(response);
+            response = malloc(sizeof(struct message));
+        }
+
+        print_status_all_response(requests,done,requests_count,done_count);
+
         close(main_channel_fd);
         close(response_fd);
         unlink(path);
