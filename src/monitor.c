@@ -349,7 +349,7 @@ void stats_uniq_response(Message m){
         _exit(-1);
     }
 
-    char * programs[20];
+    char * programs[MAX_TASK_NAME_SIZE];
     char * program;
     int size = 0;
     for(int i = 0; m->data.StatsRequest.request_pids[i] != '\0' ; i++){
@@ -396,7 +396,7 @@ void stats_uniq_response(Message m){
     }
 
     for (int i = 0; i < size ; i++){
-        write(response_fd, programs[i], sizeof(char) * 20);
+        write(response_fd, programs[i], sizeof(char) * MAX_TASK_NAME_SIZE);
     }
 
     close(response_fd);
@@ -406,7 +406,7 @@ void stats_uniq_response(Message m){
 // ================================== Save To File ======================================
 
 void save_single_task(Task t){
-    char path[50];
+    char path[64];
     char task_file[20];
     strcpy(path, folders_path);
     sprintf(task_file, "/process_%d.txt",t->process_pid);
@@ -430,7 +430,7 @@ void save_single_task(Task t){
 }
 
 void save_pipeline_task(Task t){
-    char path[50];
+    char path[64];
     char task_file[20];
     strcpy(path, folders_path);
     sprintf(task_file, "/process_%d.txt",t->process_pid);

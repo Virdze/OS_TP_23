@@ -54,7 +54,7 @@ void clearToken(char * token){
 //  =================================== ** PRINTS ** ===================================
 
 void printUsage(){
-    printf("Usage:.\n");
+    printf("Usage: \n");
     printf("1: ./tracer execute -u prog-a arg-1 (...) arg-n\n");
     printf("2: ./tracer execute -p prog-a arg-1 (...) arg-n | prog-b arg-1 (...) arg-n | prog-c arg-1 (...) arg-n\n");
     printf("3: ./tracer status\n");
@@ -269,7 +269,7 @@ int main(int argc, char * argv[]){
             //  1. Recolher informação do pedido
 
             pid_t pid = getpid();
-            char * command[50];
+            char * command[MAX_TASK_NAME_SIZE];
             parseCommand(argv[3], command); 
     
             // 2. Criar Mensagem de início de execução
@@ -294,7 +294,7 @@ int main(int argc, char * argv[]){
             end_message->type = 2;
             end_message->data.EEnd.end = get_time_of_day();
             end_message->data.EEnd.process_pid = pid;
-            char path[50];
+            char path[MAX_RESPONSE_PATH_LENGTH];
             sprintf(path,"../tmp/process_%d", pid);
             strncpy(end_message->data.EEnd.response_path,path,sizeof(end_message->data.EEnd.response_path) - 1);
             end_message->data.EEnd.response_path[sizeof(end_message->data.EEnd.response_path) - 1] = '\0';
@@ -334,7 +334,7 @@ int main(int argc, char * argv[]){
 
             pid_t pid = getpid();
             
-            char * tasks[50];
+            char * tasks[MAX_TASK_NAME_SIZE];
             int nr_commands = 0;
             char * token = strtok(argv[3], "|");
             while(token != NULL){
@@ -370,7 +370,7 @@ int main(int argc, char * argv[]){
             end_message->type = 4;
             end_message->data.PEnd.process_pid = pid;
             end_message->data.PEnd.exec_time = get_time_of_day();
-            char path[50];
+            char path[MAX_RESPONSE_PATH_LENGTH];
             sprintf(path,"../tmp/process_%d", pid);
             strncpy(end_message->data.PEnd.response_path,path,sizeof(end_message->data.PEnd.response_path) - 1);
             end_message->data.PEnd.response_path[sizeof(end_message->data.PEnd.response_path) - 1] = '\0';
@@ -415,7 +415,7 @@ int main(int argc, char * argv[]){
         request->type = 5;
         request->data.StatusRequest.clock = get_time_of_day();
         // 2.1 - Criar request path
-        char path[50];
+        char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
         strncpy(request->data.StatusRequest.response_path,path,sizeof(request->data.StatusRequest.response_path) - 1);
         request->data.StatusRequest.response_path[sizeof(request->data.StatusRequest.response_path) - 1] = '\0';
@@ -460,7 +460,7 @@ int main(int argc, char * argv[]){
         Message request = malloc(sizeof(struct message));
         request->type = 11;
         request->data.StatusRequest.clock = get_time_of_day();
-        char path[50];
+        char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
         strncpy(request->data.StatusRequest.response_path,path,sizeof(request->data.StatusRequest.response_path) - 1);
         request->data.StatusRequest.response_path[sizeof(request->data.StatusRequest.response_path) - 1] = '\0';
@@ -513,7 +513,7 @@ int main(int argc, char * argv[]){
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
             request->data.StatsRequest.request_pids[j] = atoi(argv[i]);
         }
-        char path[50];
+        char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
         strncpy(request->data.StatsRequest.response_path,path,sizeof(request->data.StatsRequest.response_path) - 1);
         request->data.StatsRequest.response_path[sizeof(request->data.StatsRequest.response_path) - 1] = '\0';
@@ -553,7 +553,7 @@ int main(int argc, char * argv[]){
         for(int i = 3, j = 0; i < argc && i < 100;i++, j++){
             request->data.StatsCommandRequest.request_pids[j] = atoi(argv[i]);
         }
-        char path[50];
+        char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
         strncpy(request->data.StatsCommandRequest.response_path,path,sizeof(request->data.StatsCommandRequest.response_path) - 1);
         request->data.StatsCommandRequest.response_path[sizeof(request->data.StatsCommandRequest.response_path) - 1] = '\0';
@@ -591,7 +591,7 @@ int main(int argc, char * argv[]){
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
             request->data.StatsRequest.request_pids[j] = atoi(argv[i]);
         }
-        char path[50];
+        char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
         strncpy(request->data.StatsRequest.response_path,path,sizeof(request->data.StatsRequest.response_path) - 1);
         request->data.StatsRequest.response_path[sizeof(request->data.StatsRequest.response_path) - 1] = '\0';
@@ -612,8 +612,8 @@ int main(int argc, char * argv[]){
         }
         
         ssize_t bytes_read;
-        char response[20];
-        while((bytes_read = read(response_fd, response, sizeof(char) * 20)) > 0){
+        char response[MAX_TASK_NAME_SIZE];
+        while((bytes_read = read(response_fd, response, sizeof(char) * MAX_TASK_NAME_SIZE)) > 0){
             printf("%s\n", response);
         }
 
