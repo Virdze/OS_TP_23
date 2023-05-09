@@ -248,8 +248,6 @@ void status_all_response(Message m){
             response->data.StatusResponseP.nr_comandos = requests[i]->info.Pipeline.nr_commands;
             write(response_fd, response, sizeof(struct message));
         }
-        free(response);
-        response = malloc(sizeof(struct message));
     }
 
     for(int i = 0; i < done_count; i++){
@@ -272,8 +270,6 @@ void status_all_response(Message m){
             response->data.StatusResponseP.nr_comandos = done[i]->info.Pipeline.nr_commands;
             write(response_fd, response, sizeof(struct message));
         }
-        free(response);
-        response = malloc(sizeof(struct message));
     }
 
     close(response_fd);
@@ -469,6 +465,7 @@ void monitoring(){
             if(new_message->type == 1){
                 Task t = createSingleTask(new_message);
                 addRequest(t);
+                printRequests();
                 printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
             }
             else if(new_message->type == 2){
@@ -482,6 +479,7 @@ void monitoring(){
                 finishRequest(t);
 
                 printf("[EXECUTE]($): Ended request nrº:(%d)\n",t->process_pid);
+                printDoneList();
 
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
@@ -497,6 +495,7 @@ void monitoring(){
             else if(new_message->type == 3){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
+                printRequests();
                 printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
                 printRequests(t);
             }
@@ -511,7 +510,8 @@ void monitoring(){
                 finishRequest(t);
 
                 printf("[EXECUTE]($): Ended request nrº (%d)\n",t->process_pid);
-            
+                printDoneList();
+
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
                     _exit(-1);

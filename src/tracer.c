@@ -78,7 +78,7 @@ void print_status_all_response_pipeline(Message m){
     printf("%ldms\n", m->data.StatusResponseP.time_elapsed);
 }
 
-void print_status_all_response(Message * requests, Message * done, int requests_count, int done_count){
+void print_status_all_response(Message * requests, int requests_count, Message * done, int done_count){
     printf("Executing:\n");
     printf("   PID   |     Task     |   Exec Time   |\n");
     for(int i = 0; i < requests_count ; i++){
@@ -92,7 +92,7 @@ void print_status_all_response(Message * requests, Message * done, int requests_
     for(int i = 0; i < done_count ; i++){
         if(done[i]->type == 14)
             print_status_all_response_single(done[i]);
-        else if (requests[i]->type == 15)
+        else if (done[i]->type == 15)
             print_status_all_response_pipeline(done[i]);
     }
 }
@@ -488,18 +488,19 @@ int main(int argc, char * argv[]){
         while((bytes_read = read(response_fd, response, sizeof(struct message))) > 0){
             if(response->type == 12 || response->type == 13){
                 requests = realloc(requests, (requests_count + 1) * sizeof(struct message));
-                requests[requests_count] = response;
+                requests[requests_count] = malloc(sizeof(struct message));
+                memcpy(requests[requests_count],response, sizeof(struct message));
                 requests_count++;
-            }else if(response->type == 14 || response->type == 15) {
+            }
+            else if(response->type == 14 || response->type == 15){
                 done = realloc(done, (done_count + 1) * sizeof(struct message));
-                done[done_count] = response;
+                done[done_count] = malloc(sizeof(struct message));
+                memcpy(done[done_count],response, sizeof(struct message));
                 done_count++;
             }
-            free(response);
-            response = malloc(sizeof(struct message));
         }
 
-        print_status_all_response(requests,done,requests_count,done_count);
+        print_status_all_response(requests, requests_count, done, done_count);
 
         close(main_channel_fd);
         close(response_fd);
