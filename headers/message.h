@@ -58,6 +58,7 @@ typedef struct message {
                                // 10- Tracer -> Monitor (stats uniq)
             char response_path[MAX_RESPONSE_PATH_LENGTH];
             pid_t request_pids[MAX_NUMBER_OF_PIDS];
+            int nr_pids;
         } StatsRequest;
 
         struct stats_command_request { // 9. Tracer -> Monitor (stats command)

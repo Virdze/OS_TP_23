@@ -286,22 +286,56 @@ void stats_time_response(Message m){
         _exit(-1);
     }
 
-    long int response = 0;
+    
+    pid_t pid;
 
-    for(int i = 0; m->data.StatsRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->data.StatsRequest.request_pids[i];
-        for(int j = 0, flag = 0; !flag ; j++){
-            if(target == done[j]->process_pid){
-                if(done[j]->type == 1)
-                    response += done[j]->info.Single.exec_time;
-                else if(done[j]->type == 2){
-                    response += done[j]->info.Pipeline.exec_time;
+    pid_t pids[m->data.StatsRequest.nr_pids];
+    int fd[2];
+    int status;
+
+    if(pipe(fd) < 0){
+        perror("Error creating pipe");
+        _exit(-1);
+    }
+
+    for(int i = 0; i < m->data.StatsRequest.nr_pids ; i++){
+        if((pid = fork()) < 0){
+            perror("Error using fork()");
+            _exit(-1);
+        }
+        else if(!pid){
+            close(fd[0]);
+            pid_t target = m->data.StatsRequest.request_pids[i];
+            for(int j = 0, flag = 0; !flag ; j++){
+                if(target == done[j]->process_pid){
+                    if(done[j]->type == 1)
+                        write(fd[1], &done[j]->info.Single.exec_time, sizeof(long int));
+                    else if(done[j]->type == 2)
+                        write(fd[1], &done[j]->info.Pipeline.exec_time, sizeof(long int)); 
+                    flag = 1;
+                    close(fd[1]);
+                    _exit(0);
                 }
-                flag = 1;
             }
+            close(fd[1]);
+            _exit(-1);
         }
     }
 
+    close(fd[1]);
+    long int num;
+    long int response = 0;
+
+    for(int i = 0; i < m->data.StatsRequest.nr_pids ; i++){
+        waitpid(pids[i], &status, 0);
+        if(WIFEXITED(status)){
+            if(WEXITSTATUS(status) == 0)
+                if(read(fd[0], &num, sizeof(long int)) > 0)
+                    response += num;
+        }
+    }
+    
+    close(fd[0]);
     write(response_fd, &response, sizeof(long int));
     close(response_fd);
 }
