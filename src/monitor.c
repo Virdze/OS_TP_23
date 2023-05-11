@@ -286,10 +286,7 @@ void stats_time_response(Message m){
         _exit(-1);
     }
 
-    
     pid_t pid;
-
-    pid_t pids[m->data.StatsRequest.nr_pids];
     int fd[2];
     int status;
 
@@ -327,14 +324,14 @@ void stats_time_response(Message m){
     long int response = 0;
 
     for(int i = 0; i < m->data.StatsRequest.nr_pids ; i++){
-        waitpid(pids[i], &status, 0);
+        wait(&status);
         if(WIFEXITED(status)){
             if(WEXITSTATUS(status) == 0)
                 if(read(fd[0], &num, sizeof(long int)) > 0)
                     response += num;
         }
     }
-    
+
     close(fd[0]);
     write(response_fd, &response, sizeof(long int));
     close(response_fd);
@@ -378,57 +375,77 @@ void stats_uniq_response(Message m){
         perror("Error opening fifo!\n");
         _exit(-1);
     }
+    
+    pid_t pid;
+    int fd[2];
+    int status;
 
-    char * programs[MAX_TASK_NAME_SIZE];
-    char * program;
-    int size = 0;
-    for(int i = 0; m->data.StatsRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->data.StatsRequest.request_pids[i];
-        for(int j = 0, flag = 0; !flag ; j++){
-            if(target == done[j]->process_pid){
-                if(done[j]->type == 1){
-                    program = strdup(done[j]->info.Single.task_name);
-                    int needle = 0;
-                    for(int k = 0; k < size; k++){
-                        if(!strcmp(program, programs[k])){
-                            needle = 1;
-                            break;
-                        }
+    if(pipe(fd) < 0){
+        perror("Error creating pipe");
+        _exit(-1);
+    }
+
+    for(int i = 0; i < m->data.StatsRequest.nr_pids ; i++){
+        if((pid = fork()) < 0){
+            perror("Error using fork()!");
+            _exit(-1);
+        }
+        else if(!pid){
+            close(fd[0]);
+
+            pid_t target = m->data.StatsRequest.request_pids[i];
+            for(int j = 0; j < done_count; j++){
+                if(target == done[j]->process_pid){
+                    if(done[j]->type == 1){
+                        write(fd[1], done[j]->info.Single.task_name, MAX_TASK_NAME_SIZE);
+                        close(fd[1]);
+                        _exit(0);
                     }
-                    if(!needle){
-                        programs[size] = malloc(sizeof(char) * 20);
-                        memset(programs[size], 0, sizeof(char) * 20);
-                        strcpy(programs[size], program);
-                        size++;
+                    else if(done[j]->type == 2){
+                        for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
+                            char * cmd = strdup(done[j]->info.Pipeline.tasks_names[k]);
+                            char * program;
+                            program  = strdup(strtok(cmd, " "));
+                            write(fd[1], program, MAX_TASK_NAME_SIZE);
+                        }
+                        close(fd[1]);
+                        _exit(0);
                     }
                 }
-                else if(done[j]->type == 2){
-                    for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
-                        char * cmd = strdup(done[j]->info.Pipeline.tasks_names[k]);
-                        program = strdup(strtok(cmd, " "));
-
-                        int needle = 0;
-                        for(int x = 0; x < size ; x++){
-                            if(!strcmp(program, programs[x])){
-                                needle = 1;
-                                break;
-                            }
-                        }
-                        if(!needle){
-                            strcpy(programs[size], program);
-                            size++;
-                        }
-                    }
-                }
-                flag = 1;
             }
+            close(fd[1]);
+            _exit(-1);
         }
     }
+    close(fd[1]);
+
+    
+    char * programs[MAX_TASK_NAME_SIZE];
+    int size = 0;
+
+    char * task_name = malloc(sizeof(char) * MAX_TASK_NAME_SIZE);
+    ssize_t read_bytes;
+    while((read_bytes = read(fd[0], task_name, MAX_TASK_NAME_SIZE))){
+        int flag = 0;
+        for(int j = 0; j < size; j++)
+            if(!strcmp(task_name, programs[j])) 
+                flag = 1;
+        if(!flag){
+            programs[size] = malloc(sizeof(char) * MAX_TASK_NAME_SIZE);
+            memset(programs[size], 0, sizeof(char) * MAX_TASK_NAME_SIZE);
+            strcpy(programs[size], task_name);
+            size++;
+        }
+    }
+    close(fd[0]);
 
     for (int i = 0; i < size ; i++){
         write(response_fd, programs[i], sizeof(char) * MAX_TASK_NAME_SIZE);
     }
-
+    
+    for(int i = 0; i < m->data.StatsRequest.nr_pids ; i++){
+        wait(&status);
+    }
     close(response_fd);
 }
 

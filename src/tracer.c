@@ -591,9 +591,10 @@ int main(int argc, char * argv[]){
         pid_t pid = getpid();
         Message request = malloc(sizeof(struct message));
         request->type = 10;
-
+        request->data.StatsRequest.nr_pids = 0;
         for(int i = 2, j = 0; i < argc && i < 100;i++, j++){
             request->data.StatsRequest.request_pids[j] = atoi(argv[i]);
+            request->data.StatsRequest.nr_pids++;
         }
         char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);
