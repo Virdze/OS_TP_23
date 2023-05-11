@@ -65,6 +65,7 @@ typedef struct message {
             char response_path[MAX_RESPONSE_PATH_LENGTH];
             char task_name[MAX_TASK_NAME_SIZE];
             pid_t request_pids[MAX_NUMBER_OF_PIDS];
+            int nr_pids;
         } StatsCommandRequest;
 
     } data;

@@ -552,10 +552,13 @@ int main(int argc, char * argv[]){
 
         Message request = malloc(sizeof(struct message));
         request->type = 9;
+        
         strncpy(request->data.StatsCommandRequest.task_name, argv[2], sizeof(request->data.StatsCommandRequest.task_name) - 1);
         request->data.StatsCommandRequest.task_name[sizeof(request->data.StatsCommandRequest.task_name) - 1] = '\0';
+        request->data.StatsCommandRequest.nr_pids = 0;
         for(int i = 3, j = 0; i < argc && i < 100;i++, j++){
             request->data.StatsCommandRequest.request_pids[j] = atoi(argv[i]);
+            request->data.StatsCommandRequest.nr_pids++;
         }
         char path[MAX_RESPONSE_PATH_LENGTH];
         sprintf(path,"../tmp/process_%d", pid);

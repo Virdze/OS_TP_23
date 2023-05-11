@@ -344,25 +344,65 @@ void stats_command_response(Message m){
         _exit(-1);
     }
 
-    int response = 0;
+    pid_t pid;
+    int fd[2];
+    int status;
+
+    if(pipe(fd) < 0){
+        perror("Error creating pipe");
+        _exit(-1);
+    }
+
     char * program = strdup(m->data.StatsCommandRequest.task_name);
-    for(int i = 0; m->data.StatsCommandRequest.request_pids[i] != '\0' ; i++){
-        pid_t target = m->data.StatsCommandRequest.request_pids[i];
-        for(int j = 0,flag = 0; !flag ; j++){
-            if(done[j]->process_pid == target){
-                if(done[j]->type == 1 && !strcmp(program, done[j]->info.Single.task_name))
-                        response++;
-                else if(done[j]->type == 2){
-                    for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
-                        char * c = strtok(done[j]->info.Pipeline.tasks_names[k], " ");
-                        if(!strcmp(program, c))
-                            response++;
+    for(int i = 0; i < m->data.StatsCommandRequest.nr_pids; i++){
+        if((pid = fork()) < 0){
+            perror("Error using fork()!");
+            _exit(-1);
+        }
+        else if(!pid){
+            close(fd[0]);
+            pid_t target = m->data.StatsCommandRequest.request_pids[i];
+            for(int j = 0; j < done_count ; j++){
+                if(done[j]->process_pid == target){
+                    if(done[j]->type == 1 && !strcmp(program, done[j]->info.Single.task_name)){
+                        int x = 1;
+                        write(fd[1], &x, sizeof(int));
+                        close(fd[1]);
+                        _exit(0);
+                    }
+                    else if(done[j]->type == 2){
+                        int x = 0;
+                        for(int k = 0; k < done[j]->info.Pipeline.nr_commands; k++){
+                            char * c = strtok(done[j]->info.Pipeline.tasks_names[k], " ");
+                            if(!strcmp(program, c))
+                                x++;
+                        }
+                        if(x > 0){
+                            write(fd[1], &x, sizeof(int));
+                            close(fd[1]);
+                            _exit(0);
+                        }
                     }
                 }
-                flag = 1;
+            }
+            close(fd[1]);
+            _exit(-1);
+        }
+    }
+    close(fd[1]);
+
+    int response = 0;
+    for(int i = 0; i < m->data.StatsCommandRequest.nr_pids; i++){
+        wait(&status);
+        if(WIFEXITED(status)){
+            if(WEXITSTATUS(status) == 0){
+                int num;
+                read(fd[0], &num, sizeof(int));
+                response += num;
             }
         }
     }
+
     write(response_fd, &response, sizeof(int));
     close(response_fd);
 }
