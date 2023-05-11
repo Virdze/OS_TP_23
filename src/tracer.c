@@ -117,16 +117,23 @@ void print_status_response_pipeline(Message m){
     printf("================================\n");
 }
 
-void printStatusTimeResponse(long int response){
+void printStatsTimeResponse(long int response){
     printf("================================\n");
     printf("Total execution time is %ld ms\n",response);
     printf("================================\n");
 }
 
-void printStatusCommandResponse(char * task_name, int response){
-    printf("================================\n");
-    printf("%s was executed %d times\n",task_name,response);
-    printf("================================\n");
+void printStatsCommandResponse(char * task_name, int response){
+    if(response > 1){
+        printf("================================\n");
+        printf("%s was executed %d times\n",task_name,response);
+        printf("================================\n");
+    }
+    else{
+        printf("================================\n");
+        printf("%s was executed %d time\n",task_name,response);
+        printf("================================\n");
+    }
 }
 
 
@@ -269,8 +276,9 @@ int main(int argc, char * argv[]){
             //  1. Recolher informação do pedido
 
             pid_t pid = getpid();
-            char * command[MAX_TASK_NAME_SIZE];
-            parseCommand(argv[3], command); 
+            char * cmd = strdup(argv[3]);
+            char * parsed_command[MAX_TASK_NAME_SIZE];
+            parseCommand(argv[3], parsed_command); 
     
             // 2. Criar Mensagem de início de execução
             
@@ -278,16 +286,16 @@ int main(int argc, char * argv[]){
             start_message->type = 1;
             start_message->data.EStart.start = get_time_of_day();
             start_message->data.EStart.process_pid = pid;
-            strncpy(start_message->data.EStart.task_name,command[0],sizeof(start_message->data.EStart.task_name) - 1);
+            strncpy(start_message->data.EStart.task_name,cmd,sizeof(start_message->data.EStart.task_name) - 1);
             start_message->data.EStart.task_name[sizeof(start_message->data.EStart.task_name) - 1] = '\0';
 
             // 3. Enviar informação para o monitor
             write(main_channel_fd, start_message, sizeof(struct message));
             // 4. Informar utilizador de início da execução
             printf("Running PID %d\n", pid);
-        
+
             // 5. Executar programa
-            executeSingle(command);
+            executeSingle(parsed_command);
 
             // 6. Criar Mensagem de fim de Execução
             Message end_message = malloc(sizeof(struct message));
@@ -540,7 +548,7 @@ int main(int argc, char * argv[]){
         ssize_t bytes_read;
         long int response;
         while((bytes_read = read(response_fd, &response, sizeof(long int))) > 0){
-            printStatusTimeResponse(response);
+            printStatsTimeResponse(response);
         }
 
         close(main_channel_fd);
@@ -583,7 +591,7 @@ int main(int argc, char * argv[]){
         ssize_t bytes_read;
         int response;
         while((bytes_read = read(response_fd, &response, sizeof(int))) > 0){
-            printStatusCommandResponse(argv[2], response);
+            printStatsCommandResponse(argv[2], response);
         }
 
         close(main_channel_fd);

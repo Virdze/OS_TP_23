@@ -129,6 +129,7 @@ void finishRequest(Task task){
         done[done_count-1] = task;
     }
 }
+
 // ======================================================================================
 // ================================== Create Tasks ======================================
 
@@ -364,11 +365,14 @@ void stats_command_response(Message m){
             pid_t target = m->data.StatsCommandRequest.request_pids[i];
             for(int j = 0; j < done_count ; j++){
                 if(done[j]->process_pid == target){
-                    if(done[j]->type == 1 && !strcmp(program, done[j]->info.Single.task_name)){
-                        int x = 1;
-                        write(fd[1], &x, sizeof(int));
-                        close(fd[1]);
-                        _exit(0);
+                    if(done[j]->type == 1){
+                        char * c = strtok(done[j]->info.Single.task_name, " ");
+                        if(!strcmp(program, c)){
+                            int x = 1;
+                            write(fd[1], &x, sizeof(int));
+                            close(fd[1]);
+                            _exit(0);
+                        }
                     }
                     else if(done[j]->type == 2){
                         int x = 0;
@@ -437,7 +441,10 @@ void stats_uniq_response(Message m){
             for(int j = 0; j < done_count; j++){
                 if(target == done[j]->process_pid){
                     if(done[j]->type == 1){
-                        write(fd[1], done[j]->info.Single.task_name, MAX_TASK_NAME_SIZE);
+                        char * cmd = strdup(done[j]->info.Single.task_name);
+                        char * program;
+                        program = strdup(strtok(cmd, " "));
+                        write(fd[1], program, MAX_TASK_NAME_SIZE);
                         close(fd[1]);
                         _exit(0);
                     }
