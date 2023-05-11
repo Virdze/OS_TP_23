@@ -34,9 +34,9 @@ void printSingleTask(Task t){
 void printPipelineTask(Task t){
     printf("PID: %d\n", t->process_pid);
     for(int i = 0; i < (t->info.Pipeline.nr_commands) - 1 ; i++){
-        printf("%s |", t->info.Pipeline.tasks_names[i]);
+        printf("%s | ", t->info.Pipeline.tasks_names[i]);
     }
-    printf("%s \n", t->info.Pipeline.tasks_names[(t->info.Pipeline.nr_commands) - 1]);
+    printf("%s\n", t->info.Pipeline.tasks_names[(t->info.Pipeline.nr_commands) - 1]);
     printf("%ldms \n", t->info.Pipeline.exec_time);
 }
 
@@ -469,7 +469,6 @@ void save_single_task(Task t){
     write(output_fd, t->info.Single.task_name,sizeof(char) * strlen(t->info.Single.task_name));
     write(output_fd,"\n",sizeof(char) * strlen("\n"));
     write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
-    write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
     char time[16];
     snprintf(time,sizeof(time),"%ldms", t->info.Single.exec_time); 
     write(output_fd,time,sizeof(char) * strlen(time));  
@@ -516,7 +515,6 @@ void monitoring(){
             if(new_message->type == 1){
                 Task t = createSingleTask(new_message);
                 addRequest(t);
-                printRequests();
                 printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
             }
             else if(new_message->type == 2){
@@ -530,7 +528,6 @@ void monitoring(){
                 finishRequest(t);
 
                 printf("[EXECUTE]($): Ended request nrº:(%d)\n",t->process_pid);
-                printDoneList();
 
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
@@ -546,9 +543,7 @@ void monitoring(){
             else if(new_message->type == 3){
                 Task t = createPipelineTask(new_message);
                 addRequest(t);
-                printRequests();
                 printf("[EXECUTE]($): Added request nrº %d to the running tasks!\n",t->process_pid);
-                printRequests(t);
             }
             else if(new_message->type == 4){
                 pid_t pid;
@@ -561,7 +556,6 @@ void monitoring(){
                 finishRequest(t);
 
                 printf("[EXECUTE]($): Ended request nrº (%d)\n",t->process_pid);
-                printDoneList();
 
                 if((pid = fork()) < 0){
                     perror("Error using fork()!\n");
