@@ -80,7 +80,6 @@ void print_status_all_response_pipeline(Message m){
 
 void print_status_all_response(Message * requests, int requests_count, Message * done, int done_count){
     printf("Executing:\n");
-    printf("   PID   |     Task     |   Exec Time   |\n");
     for(int i = 0; i < requests_count ; i++){
         if(requests[i]->type == 12)
             print_status_all_response_single(requests[i]);
@@ -88,7 +87,6 @@ void print_status_all_response(Message * requests, int requests_count, Message *
             print_status_all_response_pipeline(requests[i]);
     }
     printf("\nFinished:\n");
-    printf("   PID   |     Task     |   Exec Time   |\n");
     for(int i = 0; i < done_count ; i++){
         if(done[i]->type == 14)
             print_status_all_response_single(done[i]);
@@ -98,42 +96,26 @@ void print_status_all_response(Message * requests, int requests_count, Message *
 }
 
 void print_status_response_single(Message m){
-    printf("================================\n");
-    printf("PID: %d\n", m->data.StatusResponseS.process_pid);
-    printf("Task: %s\n", m->data.StatusResponseS.task_name);
-    printf("Time Elapsed: %ldms\n", m->data.StatusResponseS.time_elapsed);
-    printf("================================\n");
+    printf("%d ", m->data.StatusResponseS.process_pid);
+    printf("%s ", m->data.StatusResponseS.task_name);
+    printf("%ldms\n", m->data.StatusResponseS.time_elapsed);
 }
 
 void print_status_response_pipeline(Message m){
-    printf("================================\n");
-    printf("PID: %d\n", m->data.StatusResponseP.process_pid);
-    printf("Tasks:\n");
+    printf("%d ", m->data.StatusResponseP.process_pid);
     for(int i = 0; i < (m->data.StatusResponseP.nr_comandos) - 1;i++){
-        printf("%s |", m->data.StatusResponseP.tasks_pipeline[i]);
+        printf("%s | ", m->data.StatusResponseP.tasks_pipeline[i]);
     }
-    printf("%s \n", m->data.StatusResponseP.tasks_pipeline[(m->data.StatusResponseP.nr_comandos) - 1]);
-    printf("Time Elapsed: %ldms\n", m->data.StatusResponseP.time_elapsed);
-    printf("================================\n");
+    printf("%s ", m->data.StatusResponseP.tasks_pipeline[(m->data.StatusResponseP.nr_comandos) - 1]);
+    printf("%ldms\n", m->data.StatusResponseP.time_elapsed);
 }
 
 void printStatsTimeResponse(long int response){
-    printf("================================\n");
     printf("Total execution time is %ld ms\n",response);
-    printf("================================\n");
 }
 
 void printStatsCommandResponse(char * task_name, int response){
-    if(response > 1){
-        printf("================================\n");
-        printf("%s was executed %d times\n",task_name,response);
-        printf("================================\n");
-    }
-    else{
-        printf("================================\n");
-        printf("%s was executed %d time\n",task_name,response);
-        printf("================================\n");
-    }
+    printf("%s was executed %d time(s)\n",task_name,response);    
 }
 
 
@@ -243,12 +225,7 @@ void executePipeline(char ** commands, int nr_commands){
 
     for(int i = 0 ; i < nr_commands; i++){
         waitpid(pids[i],&status,0);
-        if(WEXITSTATUS(status) < 0){
-            printf("Something went wrong!\n");
-            break;
-        }
-        else printf("Command runned!\n");   
-    }    
+    } 
 }
 
 // =====================================================================================

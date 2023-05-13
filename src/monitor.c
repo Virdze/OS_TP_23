@@ -512,13 +512,16 @@ void save_single_task(Task t){
         _exit(-1);
     }
     
+    write(output_fd, "================================\n", sizeof(char) * strlen("================================\n"));
     write(output_fd,"Program name: ",sizeof(char) * strlen("Program name: "));
     write(output_fd, t->info.Single.task_name,sizeof(char) * strlen(t->info.Single.task_name));
     write(output_fd,"\n",sizeof(char) * strlen("\n"));
     write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
     char time[16];
     snprintf(time,sizeof(time),"%ldms", t->info.Single.exec_time); 
-    write(output_fd,time,sizeof(char) * strlen(time));  
+    write(output_fd,time,sizeof(char) * strlen(time));
+     
+    write(output_fd, "\n================================\n", sizeof(char) * strlen("\n================================\n"));  
     close(output_fd);
 }
 
@@ -534,7 +537,8 @@ void save_pipeline_task(Task t){
         perror("Error opening to write data!");
         _exit(-1);
     }
-    
+     
+    write(output_fd, "================================\n", sizeof(char) * strlen("================================\n"));
     write(output_fd,"Program name: ",sizeof(char) * strlen("Program name: "));
     int nr_commands = t->info.Pipeline.nr_commands;
     for(int i = 0; i < nr_commands-1; i++){
@@ -548,7 +552,9 @@ void save_pipeline_task(Task t){
     write(output_fd,"Time: ", sizeof(char) * strlen("Time: "));
     char time[16];
     snprintf(time,sizeof(time),"%ldms", t->info.Pipeline.exec_time); 
-    write(output_fd,time,sizeof(char) * strlen(time));  
+    write(output_fd,time,sizeof(char) * strlen(time));
+     
+    write(output_fd, "\n================================\n", sizeof(char) * strlen("\n================================\n"));
     close(output_fd);
 }
 // ======================================================================================
